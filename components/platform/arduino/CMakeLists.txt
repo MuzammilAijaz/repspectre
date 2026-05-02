@@ -1,9 +1,8 @@
 add_library(platform-arduino INTERFACE)
 
 target_sources(platform-arduino INTERFACE
-    arduino_gpio.c
-    arduino_i2c.c
-    arduino_mpu6050.c
+    i2c_arduino.cpp
+    i2cdev_i2c_arduino.c
 )
 
 target_include_directories(platform-arduino
@@ -20,4 +19,5 @@ target_link_libraries(platform-arduino
 
     platform-api
     hal-api
+    i2c
 )

@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include 
 
 extern "C" {
 #include "qpc.h"
@@ -49,6 +50,7 @@ static void run_test_fixture() {
 }
 
 void setup() {
+
     run_test_fixture();
 }
 
@@ -62,8 +64,7 @@ void QS_onCommand(uint8_t cmdId,
         uint32_t param3) {
     switch (cmdId) {
         case 0U:
-            ADC_set(static_cast<uint16_t>(param1));
-            (void)ADC_read();
+            Sensor_Init()
             break;
 
         default:

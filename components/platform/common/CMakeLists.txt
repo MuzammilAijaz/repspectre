@@ -1,0 +1,22 @@
+add_library(platform-common INTERFACE)
+
+target_sources(platform-common INTERFACE
+    i2cdev_i2c_common.c
+)
+
+target_include_directories(platform-common
+    INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+# C standard (propagates to users like tests)
+target_compile_features(platform-common INTERFACE c_std_11)
+
+target_link_libraries(platform-common
+    INTERFACE
+    qp-headers
+
+    platform-api
+    hal-api
+    i2c
+)
