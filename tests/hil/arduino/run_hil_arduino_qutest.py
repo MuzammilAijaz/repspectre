@@ -286,6 +286,7 @@ def _compute_inputs_digest(
     port_dir: Path,
     extra_defines: str,
     stage_mode: str,
+    extra_includes: list[str],
 ) -> str:
     """
     Cheap-ish fingerprint of build inputs (uses mtime+size, not file contents).
@@ -310,13 +311,14 @@ def _compute_inputs_digest(
 
     for rel in QPC_SOURCES:
         p = qpc_dir / rel
-        st = p.stat()
-        h.update(str(p).encode("utf-8"))
-        h.update(b"\0")
-        h.update(str(st.st_size).encode("utf-8"))
-        h.update(b"\0")
-        h.update(str(st.st_mtime_ns).encode("utf-8"))
-        h.update(b"\n")
+        if p.exists():
+            st = p.stat()
+            h.update(str(p).encode("utf-8"))
+            h.update(b"\0")
+            h.update(str(st.st_size).encode("utf-8"))
+            h.update(b"\0")
+            h.update(str(st.st_mtime_ns).encode("utf-8"))
+            h.update(b"\n")
 
     for p in _iter_nonhidden_files(port_dir):
         st = p.stat()
@@ -335,6 +337,19 @@ def _compute_inputs_digest(
         h.update(b"\0")
         h.update(str(st.st_mtime_ns).encode("utf-8"))
         h.update(b"\n")
+
+    for inc_dir in extra_includes:
+        p_dir = Path(inc_dir)
+        if p_dir.exists() and p_dir.is_dir():
+            for p in _iter_nonhidden_files(p_dir):
+                if p.suffix in {".h", ".hpp", ".hh", ".hxx"}:
+                    st = p.stat()
+                    h.update(str(p).encode("utf-8"))
+                    h.update(b"\0")
+                    h.update(str(st.st_size).encode("utf-8"))
+                    h.update(b"\0")
+                    h.update(str(st.st_mtime_ns).encode("utf-8"))
+                    h.update(b"\n")
 
     return h.hexdigest()
 
@@ -366,6 +381,8 @@ def _stage_sketch(
     port_dir: Path,
     out_root: Path,
     stage_mode: str,
+    extra_libs: list[str],
+    extra_includes: list[str],
 ) -> Path:
     if not sketch_dir.exists():
         raise FileNotFoundError(f"Sketch dir not found: {sketch_dir}")
@@ -428,9 +445,43 @@ def _stage_sketch(
     for rel in QPC_SOURCES:
         src = qpc_dir / rel
         if not src.exists():
-            raise FileNotFoundError(f"Missing QP/C source: {src}")
+            continue
         desired_names.add(src.name)
         _link_or_copy_file(src, staged_sketch_dir / src.name, mode=stage_mode)
+
+    # Stage external library sources
+    for lib_path in extra_libs:
+        src = Path(lib_path)
+        if not src.exists():
+            continue
+
+        if src.is_file():
+            # For files, copy directly to sketch root to be included in the build
+            dst = staged_sketch_dir / src.name
+            desired_names.add(dst.name)
+            _link_or_copy_file(src, dst, mode="copy")
+        elif src.is_dir():
+            # For directories, stage files into the sketch root as well
+            for p in src.rglob("*"):
+                if p.is_dir():
+                    continue
+                if p.suffix in {".c", ".cpp", ".h", ".hpp"}:
+                    dst = staged_sketch_dir / p.name
+                    desired_names.add(dst.name)
+                    _link_or_copy_file(p, dst, mode="copy")
+
+    # Stage headers from extra include directories into the sketch root
+    # This ensures they are visible in the work-dir as requested by the user
+    # and makes the sketch more self-contained.
+    for inc_dir in extra_includes:
+        src_dir = Path(inc_dir)
+        if src_dir.exists() and src_dir.is_dir():
+            for p in src_dir.iterdir():
+                if p.is_file() and p.suffix in {".h", ".hpp", ".hh", ".hxx"}:
+                    dst = staged_sketch_dir / p.name
+                    if dst.name not in desired_names: # avoid overwriting sources/ports
+                        desired_names.add(dst.name)
+                        _link_or_copy_file(p, dst, mode="copy")
 
     # Remove stale files from the staged sketch root.
     for item in staged_sketch_dir.iterdir():
@@ -444,14 +495,24 @@ def _stage_sketch(
 def _arduino_cli_compile(
     arduino_cli: str,
     fqbn: str,
-    sketch_dir: Path,
+    staged_sketch_dir: Path,
     qpc_include_dir: Path,
     extra_defines: str,
+    extra_includes: str,
     build_path: Path,
     build_cache_path: Path,
     output_dir: Path,
 ) -> None:
-    extra_includes = f"-I{qpc_include_dir} -I{port_dir}"
+    print(f"DEBUG: Compiling sketch in {staged_sketch_dir}...")
+    # Collect all directories containing header files in the staged workspace
+    include_dirs = []
+    for p in staged_sketch_dir.rglob("*.h"):
+        if p.parent not in include_dirs:
+            include_dirs.append(p.parent)
+
+    extra_includes_flags = " ".join(f"-I{inc}" for inc in extra_includes)
+    staged_includes_flags = " ".join(f"-I{inc}" for inc in include_dirs)
+    all_extra_includes = f"-I{qpc_include_dir} -I{port_dir} {extra_includes_flags} {staged_includes_flags}"
     defs = f"-DQ_SPY -DQ_UTEST=1 {extra_defines}".strip()
 
     # NOTE: build properties are core-specific, but these work for common cores.
@@ -462,17 +523,17 @@ def _arduino_cli_compile(
         fqbn,
         "--build-path",
         str(build_path),
-        # "--build-cache-path",
-        # str(build_cache_path), # deprecated!
         "--output-dir",
         str(output_dir),
         "--build-property",
-        f"compiler.cpp.extra_flags={defs} {extra_includes}",
+        f"compiler.cpp.extra_flags={defs} {all_extra_includes}",
         "--build-property",
-        f"compiler.c.extra_flags={defs} {extra_includes}",
-        str(sketch_dir),
+        f"compiler.c.extra_flags={defs} {all_extra_includes}",
+        str(staged_sketch_dir),
     ]
-    subprocess.check_call(cmd)
+    print(f"DEBUG: Running compile command: {' '.join(cmd)}")
+    subprocess.run(cmd, check=True, timeout=300)
+    print("DEBUG: Compilation successful.")
 
 
 def _arduino_cli_upload(
@@ -482,6 +543,7 @@ def _arduino_cli_upload(
     sketch_dir: Path,
     input_dir: Path,
 ) -> None:
+    print(f"DEBUG: Uploading sketch to {port}...")
     # Try to upload the compiled artifacts, fall back to compile+upload if needed.
     cmd = [
         arduino_cli,
@@ -494,10 +556,13 @@ def _arduino_cli_upload(
         str(input_dir),
         str(sketch_dir),
     ]
+    print(f"DEBUG: Running upload command: {' '.join(cmd)}")
     try:
-        subprocess.check_call(cmd)
+        subprocess.run(cmd, check=True, timeout=60)
+        print("DEBUG: Upload successful.")
         return
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        print(f"DEBUG: Upload with --input-dir failed or timed out: {e}. Falling back to normal upload.")
         pass
 
     cmd = [
@@ -509,7 +574,9 @@ def _arduino_cli_upload(
         port,
         str(sketch_dir),
     ]
-    subprocess.check_call(cmd)
+    print(f"DEBUG: Running fallback upload command: {' '.join(cmd)}")
+    subprocess.run(cmd, check=True, timeout=90)
+    print("DEBUG: Fallback upload successful.")
 
 
 def _run_qutest(
@@ -546,14 +613,20 @@ def _run_qutest(
     sys.argv = [qutest_py, *qutest_args, *scripts]
 
     try:
+        print(f"DEBUG: Calling qutest_mod.main() with scripts={scripts}")
         qutest_mod.main()
+        print("DEBUG: qutest_mod.main() returned")
         return 0
     except SystemExit as exc:
         code = exc.code
+        print(f"DEBUG: qutest_mod.main() exited with SystemExit({code})")
         if code is None:
             return 0
         if isinstance(code, int):
             return code
+        return 1
+    except Exception as e:
+        print(f"DEBUG: qutest_mod.main() raised exception: {e}")
         return 1
     finally:
         sys.argv = saved_argv
@@ -569,6 +642,7 @@ def main() -> int:
     parser.add_argument("--qutest", required=True, help="Path to qutest.py (QTools)")
     parser.add_argument("--qspy-port", default="", help="Serial port for qspy (defaults to --port)")
     parser.add_argument("--qspy-baud", type=int, default=115200, help="Baud rate for qspy/Serial")
+    parser.add_argument("--config", help="Path to HIL config JSON")
 
     parser.add_argument(
         "--qspy-extra",
@@ -643,6 +717,21 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    config = {}
+    if args.config:
+        config_path = Path(args.config).expanduser().resolve()
+        if not config_path.exists():
+            raise FileNotFoundError(f"Config file not found: {config_path}")
+
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+    arduino_cfg = config.get("arduino", {})
+    extra_includes = arduino_cfg.get("includes", [])
+    print("INCLUDES:", extra_includes)
+    extra_libs = arduino_cfg.get("libraries", [])
+    print("LIBRARIES:", extra_libs)
+
     qpc_dir = Path(args.qpc).expanduser().resolve() if args.qpc else _default_qpc_dir()
     sketch_dir = Path(args.sketch).expanduser().resolve()
 
@@ -682,6 +771,8 @@ def main() -> int:
             port_dir=port_dir,
             out_root=stage_root,
             stage_mode=args.stage_mode,
+            extra_libs=extra_libs,
+            extra_includes=extra_includes,
         )
 
         build_path = stage_root / "build"
@@ -716,6 +807,7 @@ def main() -> int:
             port_dir=port_dir,
             extra_defines=extra_defines,
             stage_mode=args.stage_mode,
+            extra_includes=extra_includes,
         )
 
         prev_stamp = _read_json(stamp_path)
@@ -734,9 +826,10 @@ def main() -> int:
             _arduino_cli_compile(
                 arduino_cli=args.arduino_cli,
                 fqbn=args.fqbn,
-                sketch_dir=staged_sketch_dir,
+                staged_sketch_dir=staged_sketch_dir,
                 qpc_include_dir=qpc_dir / "include",
                 extra_defines=extra_defines,
+                extra_includes=extra_includes,
                 build_path=build_path,
                 build_cache_path=cache_path,
                 output_dir=out_dir,
@@ -804,6 +897,7 @@ def main() -> int:
 
         try:
             if qspy_log:
+                print(f"DEBUG: Starting QSPY, logging to {qspy_log}")
                 qspy_out = open(qspy_log, "wb")
                 qspy = subprocess.Popen(
                     qspy_cmd,
@@ -812,6 +906,7 @@ def main() -> int:
                     stderr=subprocess.STDOUT,
                 )
             else:
+                print("DEBUG: Starting QSPY")
                 qspy = subprocess.Popen(
                     qspy_cmd,
                     stdin=subprocess.DEVNULL,
@@ -819,12 +914,15 @@ def main() -> int:
                     stderr=subprocess.STDOUT,
                 )
 
+            print(f"DEBUG: Waiting {qspy_startup_delay_s}s for QSPY to start...")
             time.sleep(qspy_startup_delay_s)
+            print(f"DEBUG: Releasing serial reset lines on {qspy_serial}")
             _release_serial_reset_lines(qspy_serial)
 
             if not args.scripts:
                 raise ValueError("No QUTest scripts provided")
 
+            print("DEBUG: Initiating QUTest run...")
             return _run_qutest(
                 qutest_py=qutest_path,
                 scripts=[str(Path(s).expanduser().resolve()) for s in args.scripts],
@@ -835,6 +933,7 @@ def main() -> int:
 
         finally:
             if qspy is not None:
+                print("DEBUG: Terminating QSPY...")
                 _terminate_process(qspy, timeout_s=0.3)
             if qspy_out is not None:
                 try:
@@ -856,3 +955,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

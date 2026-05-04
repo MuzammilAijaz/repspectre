@@ -1,0 +1,20 @@
+{
+  "qpc_dir": "@QPC_DIR@",
+  "build_dir": "@CMAKE_BINARY_DIR@",
+  "binary_dir": "@CMAKE_BINARY_DIR@",
+  "source_dir": "@CMAKE_SOURCE_DIR@",
+
+  "arduino": {
+    "fqbn": "@ARDUINO_FQBN_EFFECTIVE@",
+    "port": "@ARDUINO_PORT@",
+    "cli": "@ARDUINO_CLI@",
+
+    "includes": @ARDUINO_EXTRA_INCLUDES@,
+    "libraries": @ARDUINO_EXTRA_LIBS@
+  },
+
+  "qtools": {
+    "qspy": "@QSPY_BIN@",
+    "qutest": "@QUTEST_PY@"
+  }
+}

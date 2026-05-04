@@ -31,6 +31,10 @@ THE SOFTWARE.
 #ifndef _MPU6050_H_
 #define _MPU6050_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "i2cdev.h"
 
 #define MPU6050_ADDRESS_AD0_LOW     0x68 // address pin low (GND), default for InvenSense evaluation board
@@ -1004,6 +1008,10 @@ const prog_uchar dmpConfig[MPU6050_DMP_CONFIG_SIZE] PROGMEM = {
     0x02,   0x16,   0x02,   0x00, 0x0A                // D_0_22 inv_set_fifo_rate
 };
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* _MPU6050_H_ */

@@ -25,16 +25,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
+#include "FreeRTOS.h"
+#include "semphr.h"
+#include "task.h"
+#include "queue.h"
 
-#include "stm32_legacy.h"
 #include "i2cdev_i2c.h"
 #include "i2c.h"
-#include "nvicconf.h"
-#include "debug_cf.h"
 
 int i2cdevInit(I2C_Dev *dev)
 {

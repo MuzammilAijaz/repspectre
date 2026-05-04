@@ -3,21 +3,22 @@
 #ifndef I2C_H
 #define I2C_H
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
-#include "freertos/queue.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdbool.h>
+#include "FreeRTOS.h"
+#include "semphr.h"
+#include "queue.h"
 
 #include "gpio.h"
-#include "i2c_config.h"
+// #include "i2c_config.h"
 
-// TODO: Make this portable
-// Remove all i2c_port_t and gpio_pullup_t
-// #include "driver/i2c.h"
-
-// TODO: Make this portable
-// #include "stm32_legacy.h"
-
+// Definitions of sensors I2C bus
 #define I2C_NO_INTERNAL_ADDRESS   0xFFFF
+#define I2C_DEFAULT_SENSORS_CLOCK_SPEED      400000
+#define I2C_DEFAULT_I2C_MAX_PORTS            2
 
 typedef enum {
     i2cAck,
@@ -25,40 +26,22 @@ typedef enum {
 } I2cStatus;
 
 typedef enum {
-    i2cWrite,
-    i2cRead
+    DRV_I2C_WRITE,
+    DRV_I2C_READ
 } I2cDirection;
 
-// --------------------------------------------------------------------
-// REFACTOR: this code does not belong in the driver layer as it has
-// knowledge of platform.
-
-// HACK: REMOVE THIS ---------
-#define CONFIG_SOC_HP_I2C_NUM 3
-#define CONFIG_SOC_LP_I2C_NUM 2
-// HACK: REMOVE THIS ---------
-
-/** Expressif code
- * @brief I2C port number, can be I2C_NUM_0 ~ (I2C_NUM_MAX-1).
- */
+// RESEARCH: does this interface require HIGH and LOW power i2c lines?
 typedef enum {
     I2C_NUM_0 = 0,              /*!< I2C port 0 */
-#if CONFIG_SOC_HP_I2C_NUM >= 2
-    I2C_NUM_1,                  /*!< I2C port 1 */
-#endif /* CONFIG_SOC_HP_I2C_NUM >= 2 */
-#if CONFIG_SOC_LP_I2C_NUM >= 1
-    LP_I2C_NUM_0,               /*< LP_I2C port 0 */
-#endif /* CONFIG_SOC_LP_I2C_NUM >= 1 */
-    I2C_NUM_MAX,                /*!< I2C port max */
+    I2C_NUM_1 = 1,              /*!< I2C port 1 */
 } i2c_port_t;
-// --------------------------------------------------------------------
 
 typedef struct {
     i2c_port_t          i2cPort;
     uint32_t            i2cClockSpeed;
     uint32_t            gpioSCLPin;
     uint32_t            gpioSDAPin;
-    gpio_pullup_t       gpioPullup;
+    drv_gpio_pullup_t       gpioPullup;
 } I2cDef;
 
 /**
@@ -84,6 +67,9 @@ typedef struct {
 
 // Definitions of i2c busses found in c file.
 extern I2cDrv sensorsBus;
+
+/* Avoid coupling with the platform layer */
+void setSensorBusDef(const I2cDef* const busDef);
 
 /**
  * Initialize i2c peripheral as defined by static I2cDef structs.
@@ -143,6 +129,9 @@ void i2cdrvCreateMessageIntAddr(I2cMessage *message,
  */
 void i2cdrvInitBus(I2cDrv *i2c);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

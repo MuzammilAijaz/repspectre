@@ -24,7 +24,9 @@ build: configure
 	$(CMAKE) --build $(CMAKE_BUILD_DIR)
 
 # Run tests
-test:
+test: test-unit
+
+test-all:
 	$(CMAKE) --build $(CMAKE_BUILD_DIR)
 	$(CTEST) --test-dir $(CMAKE_BUILD_DIR) --output-on-failure
 

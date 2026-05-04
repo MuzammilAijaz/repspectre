@@ -6,16 +6,16 @@ static TwoWire* getWire(uint32_t port) {
 }
 
 void i2cdrvInitBus(I2cDrv *i2c) {
-    TwoWire* wire = getWire(i2c->def->port);
+    TwoWire* wire = getWire(i2c->def->i2cPort);
 
     // TODO: add pullup configuration???
-    wire->begin(i2c->def->sdaPin, i2c->def->sclPin, i2c->def->clockSpeed);
+    wire->begin(i2c->def->gpioSDAPin, i2c->def->gpioSCLPin, i2c->def->i2cClockSpeed);
 
     i2c->isBusFreeMutex = xSemaphoreCreateMutex();
 }
 
 bool i2cdrvMessageTransfer(I2cDrv *i2c, I2cMessage *message) {
-    TwoWire* wire = getWire(i2c->def->port);
+    TwoWire* wire = getWire(i2c->def->i2cPort);
     bool success = false;
 
     if (xSemaphoreTake(i2c->isBusFreeMutex, portMAX_DELAY) == pdTRUE) {
@@ -27,10 +27,10 @@ bool i2cdrvMessageTransfer(I2cDrv *i2c, I2cMessage *message) {
             }
             wire->write(message->internalAddress & 0xFF);
             // End transmission with false for Repeated Start if reading
-            wire->endTransmission(message->direction == i2cRead ? false : true);
+            wire->endTransmission(message->direction == DRV_I2C_READ ? false : true);
         }
 
-        if (message->direction == i2cWrite) {
+        if (message->direction == DRV_I2C_WRITE) {
             if (message->internalAddress == I2C_NO_INTERNAL_ADDRESS) {
                 wire->beginTransmission(message->slaveAddress);
             }

@@ -28,13 +28,12 @@
  ===============================================
  */
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 #include "i2cdev.h"
 #include "mpu6050.h"
-#include "eprintf.h"
-#include "stm32_legacy.h"
+#include "config.h"
 #define DEBUG_MODULE "MPU6050"
 #include "debug_cf.h"
 

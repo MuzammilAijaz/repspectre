@@ -1,4 +1,4 @@
-#include "i2c.c"
+#include "i2c.h"
 
 void i2cdrvInitBus(I2cDrv *i2c)
 {

@@ -32,34 +32,36 @@
 
 
 #include <string.h>
+#include <stdbool.h>
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "freertos/semphr.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "semphr.h"
 
-// #include "stm32_legacy.h" // TODO: Make this portable
-#include "i2c_config.h"
+#include <assert.h> // TODO: change to qassert.h
+// #include "i2c_config.h"
 #include "i2c.h"
-#include "config.h"
-// #define DEBUG_MODULE "I2CDRV"
-// #include "debug_cf.h"
 
-// Definitions of sensors I2C bus
-#define I2C_DEFAULT_SENSORS_CLOCK_SPEED      400000
-#define I2C_DEFAULT_I2C_MAX_PORTS            2
-
-// HACK: REMOVE THIS ---------
-// TODO: perhaps move this to platform specific config.
-#define CONFIG_I2C0_PIN_SCL 3
-#define CONFIG_I2C0_PIN_SDA 2
-// HACK: REMOVE THIS ---------
-
+// TODO: use in arduino implementation
 static bool isinit_i2cPort[I2C_DEFAULT_I2C_MAX_PORTS] = {0, 0};
 
+// TODO: add null checking to any users of sensorsBus.
+// REFACTOR: avoid others directly accessing this by using getters.
+// thereby avoiding NULL checks everywhere.
+// CAUTION: initializing .def as NULL!!!!
 I2cDrv sensorsBus = {
-    .def                = &sensorBusDef,
+    .def = NULL,
 };
+
+I2cDrv getSensorBus() {
+    // TODO:
+}
+
+void setSensorBusDef(const I2cDef* const busDef) {
+    assert(busDef != NULL);
+    sensorsBus.def = busDef;
+}
 
 /**
  * i2cdrvInitBus is platform specific.

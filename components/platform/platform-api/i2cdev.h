@@ -24,6 +24,10 @@
 #ifndef __I2CDEV_H__
 #define __I2CDEV_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -201,5 +205,8 @@ bool i2cdevWriteBit(I2C_Dev *dev, uint8_t devAddress, uint8_t memAddress,
  */
 bool i2cdevWriteBits(I2C_Dev *dev, uint8_t devAddress, uint8_t memAddress,
                      uint8_t bitStart, uint8_t length, uint8_t data);
+#ifdef __cplusplus
+}
+#endif
 
 #endif //__I2CDEV_H__

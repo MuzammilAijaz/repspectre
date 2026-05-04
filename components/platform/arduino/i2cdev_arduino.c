@@ -2,9 +2,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
-#include "freertos/task.h"
+#include "FreeRTOS.h"
+#include "semphr.h"
+#include "task.h"
 
 #include "i2cdev.h"
 #include "i2c.h"
@@ -55,7 +55,7 @@ bool i2cdevReadReg8(I2cDrv *dev, uint8_t devAddress, uint8_t memAddress, uint16_
     I2cMessage msg;
     uint16_t internalAddr = (memAddress == I2CDEV_NO_MEM_ADDR) ? I2C_NO_INTERNAL_ADDRESS : (uint16_t)memAddress;
     
-    i2cdrvCreateMessageIntAddr(&msg, devAddress, false, internalAddr, i2cRead, len, data);
+    i2cdrvCreateMessageIntAddr(&msg, devAddress, false, internalAddr, DRV_I2C_READ, len, data);
     bool success = i2cdrvMessageTransfer(dev, &msg);
 
     return success;
@@ -64,7 +64,7 @@ bool i2cdevReadReg8(I2cDrv *dev, uint8_t devAddress, uint8_t memAddress, uint16_
 bool i2cdevReadReg16(I2cDrv *dev, uint8_t devAddress, uint16_t memAddress, uint16_t len, uint8_t *data)
 {
     I2cMessage msg;
-    i2cdrvCreateMessageIntAddr(&msg, devAddress, true, memAddress, i2cRead, len, data);
+    i2cdrvCreateMessageIntAddr(&msg, devAddress, true, memAddress, DRV_I2C_READ, len, data);
     bool success = i2cdrvMessageTransfer(dev, &msg);
 
     return success;
@@ -105,7 +105,7 @@ bool i2cdevWriteReg8(I2cDrv *dev, uint8_t devAddress, uint8_t memAddress, uint16
     I2cMessage msg;
     uint16_t internalAddr = (memAddress == I2CDEV_NO_MEM_ADDR) ? I2C_NO_INTERNAL_ADDRESS : (uint16_t)memAddress;
     
-    i2cdrvCreateMessageIntAddr(&msg, devAddress, false, internalAddr, i2cWrite, len, data);
+    i2cdrvCreateMessageIntAddr(&msg, devAddress, false, internalAddr, DRV_I2C_WRITE, len, data);
     bool success = i2cdrvMessageTransfer(dev, &msg);
 
     return success;
@@ -114,7 +114,7 @@ bool i2cdevWriteReg8(I2cDrv *dev, uint8_t devAddress, uint8_t memAddress, uint16
 bool i2cdevWriteReg16(I2cDrv *dev, uint8_t devAddress, uint16_t memAddress, uint16_t len, uint8_t *data)
 {
     I2cMessage msg;
-    i2cdrvCreateMessageIntAddr(&msg, devAddress, true, memAddress, i2cWrite, len, data);
+    i2cdrvCreateMessageIntAddr(&msg, devAddress, true, memAddress, DRV_I2C_WRITE, len, data);
     bool success = i2cdrvMessageTransfer(dev, &msg);
 
     return success;

@@ -2,7 +2,8 @@ add_library(platform-arduino INTERFACE)
 
 target_sources(platform-arduino INTERFACE
     i2c_arduino.cpp
-    i2cdev_i2c_arduino.c
+    i2cdev_arduino.c
+    sensor_arduino.c
 )
 
 target_include_directories(platform-arduino
@@ -17,7 +18,7 @@ target_link_libraries(platform-arduino
     INTERFACE
     qp-headers
 
+    i2c
     platform-api
     hal-api
-    i2c
 )

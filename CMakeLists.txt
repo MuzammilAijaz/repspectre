@@ -25,6 +25,17 @@ set(PLATFORM_DIR ${CMAKE_SOURCE_DIR}/components/platform)
 set(MODULES_DIR ${CMAKE_SOURCE_DIR}/components/core/modules)
 set(TESTS_DIR ${CMAKE_SOURCE_DIR}/tests)
 
+add_library(freertos_config INTERFACE)
+target_include_directories(freertos_config INTERFACE
+    ${CMAKE_SOURCE_DIR}/components/platform/common/include/freertos-posix
+)
+
+add_library(freertos INTERFACE)
+target_link_libraries(freertos INTERFACE freertos_kernel freertos_config)
+target_include_directories(freertos INTERFACE
+    ${CMAKE_SOURCE_DIR}/build/_deps/qpc-src/3rd_party/FreeRTOS-Kernel/include
+)
+
 FetchContent_Declare(
     qpc
     GIT_REPOSITORY https://github.com/QuantumLeaps/qpc.git
