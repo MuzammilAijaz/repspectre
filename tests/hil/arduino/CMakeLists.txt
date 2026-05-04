@@ -186,6 +186,7 @@ target_link_libraries(hil-arduino-lib INTERFACE
     i2cdev-mpu6050
 )
 target_include_directories(hil-arduino-lib INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/components/platform/common/include
 )
 

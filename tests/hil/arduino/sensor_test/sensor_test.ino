@@ -2,9 +2,11 @@
 
 extern "C" {
 #include "i2c.h"
+#define ARDUINO_ESP
 #include "sensor_arduino.h"
 #include "qpc.h"
 #include "i2c_config_arduino.h"
+#include "mpu6050.h"
 }
 
 Q_DEFINE_THIS_FILE
@@ -43,8 +45,9 @@ extern "C" void QS_rx_input(void);
 static void run_test_fixture() {
     QF_init();
     Q_ALLEGE(QS_INIT(NULL));
-    
+
     QS_USR_DICTIONARY(COMMAND_TEST_SIG);
+    QS_USR_DICTIONARY(MPU6050_TEST_SIG);
 
     ADC_DICTIONARY();
     mpu6050_DICTIONARY();
@@ -93,7 +96,12 @@ void QS_onCommand(uint8_t cmdId,
                     .fifo_size = 1000,
                 };
 
-                arduinoSensorInteface.Sensor_init(config);
+                SensorStatus status = arduinoSensorInteface.Sensor_init(config);
+                if (status != SENSOR_OK) {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("MPU6050 Init Failed");
+                    QS_END();
+                }
                 break;
             }
 
@@ -118,13 +126,19 @@ void QS_onCommand(uint8_t cmdId,
                 break;
             }
 
-        // Configure FIFO interrupt and Trigger FIFO overflow
+        // Check if ISR Called
         case 3U:
             {
                 bool val = Spy_getMpuFlag();
+                Spy_resetMpuFlag();
                 if (val) {
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                         QS_STR("Mpu6050 Isr Called");
+                    QS_END();
+                }
+                else {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("Mpu6050 Isr Missing");
                     QS_END();
                 }
                 break;
@@ -145,6 +159,13 @@ void QS_onCommand(uint8_t cmdId,
                     QS_U32(0, elapsed);
                 QS_END();
 
+                break;
+            }
+
+        // Reset FIFO
+        case 5U:
+            {
+                mpu6050ResetFIFO();
                 break;
             }
 

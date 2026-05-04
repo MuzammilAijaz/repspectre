@@ -14,6 +14,7 @@ void setI2cDriver(I2cDrv* i2c_driver);
 
 // DETELTE
 bool Spy_getMpuFlag();
+void Spy_resetMpuFlag();
 void mpu6050_DICTIONARY(void);
 
 // Interface for Arduino Sensor implementation

@@ -4,13 +4,19 @@
 #include "i2c.h"
 #include "qpc.h"
 
-#define I2C_INTERRUPT_PIN 10
 
-enum {
-    MPU6050_TEST_SIG = QS_USER + 1, // +1 because HIL_TEST_SIG is first
-};
+#define I2C_INTERRUPT_PIN 8
 
-static void mpuISR();
+#if defined(ARDUINO_ESP)
+    #define MPU6050_ISR_ATTR IRAM_ATTR
+#else
+    #define MPU6050_ISR_ATTR
+#endif
+
+static I2cDrv* i2c = NULL;
+volatile bool mpuFifoOverflowFlagWasSet = false;
+
+static void MPU6050_ISR_ATTR mpuISR(void);
 
 void mpu6050_DICTIONARY(void) {
     QS_FUN_DICTIONARY(&mpuISR);
@@ -18,20 +24,19 @@ void mpu6050_DICTIONARY(void) {
     // QS_OBJ_DICTIONARY(&led_power);
 }
 
-static I2cDrv* i2c = NULL;
-volatile bool mpuFlagWasSetOnce = false;
-
 // DELETE
 bool Spy_getMpuFlag() {
-    return mpuFlagWasSetOnce;
+    return mpuFifoOverflowFlagWasSet;
+}
+void Spy_resetMpuFlag() {
+    mpuFifoOverflowFlagWasSet = false;
 }
 
-void mpuISR() {
-    // QS_BEGIN_ID(MPU6050_TEST_SIG, 1U)
-    //     QS_STR("Mpu6050 Isr Called");
-    // QS_END();
-    mpuFlagWasSetOnce = true;
-    mpu6050GetIntStatus();  // clears interrupt
+static void MPU6050_ISR_ATTR mpuISR(void) {
+    uint8_t status = mpu6050GetIntStatus();
+    if (status & (1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT)) {
+        mpuFifoOverflowFlagWasSet = true;
+    }
 }
 
 // Helper function.., doesnt belong here
@@ -42,6 +47,7 @@ void setI2cDriver(I2cDrv* i2c_driver) {
 
 SensorStatus mpu6050_init_adapter(SensorConfig config) {
     assert(i2c != NULL);
+    (void)config;
 
     mpu6050Init(i2c);
     mpu6050SetRate(200);
@@ -56,20 +62,26 @@ SensorStatus mpu6050_init_adapter(SensorConfig config) {
     mpu6050SetZGyroFIFOEnabled(true);
     mpu6050SetTempFIFOEnabled(false);
 
-    mpu6050SetIntEnabled(0x01); // enable the INT pin on board
-
-    mpu6050SetIntFIFOBufferOverflowEnabled(false);
-    mpu6050SetIntDataReadyEnabled(true);
-
-    mpu6050SetInterruptMode(false);
-    mpu6050SetInterruptLatch(true); // CAUTION: needs to be cleared upon interrupt
-    mpu6050SetInterruptDrive(true);
-
     // Arduino: setup interrupt
     pinMode(I2C_INTERRUPT_PIN, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(I2C_INTERRUPT_PIN), mpuISR, FALLING);
+    int const interrupt_num = digitalPinToInterrupt(I2C_INTERRUPT_PIN);
+    if (interrupt_num == NOT_AN_INTERRUPT) return ERR_I2C;
+    attachInterrupt(interrupt_num, mpuISR, RISING);
+
+    mpu6050SetInterruptMode(false);  // active-low
+    mpu6050SetInterruptLatch(true); // CAUTION: requires mpu6050GetIntStatus() to clear
+    mpu6050SetInterruptDrive(true); // open-drain
+
+    mpu6050SetIntFIFOBufferOverflowEnabled(true);
+    mpu6050SetIntDataReadyEnabled(false);
+    // mpu6050SetIntEnabled(1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT);
+
+    // Clear any pending status after the GPIO interrupt is armed, so the first
+    // real data-ready event produces a fresh falling edge.
+    (void)mpu6050GetIntStatus();
 
     mpu6050ResetFIFO();
+    mpuFifoOverflowFlagWasSet = false;
     // -------------------------------------------------------------
 
     // mpu6050SetIntEnabled(0);
@@ -77,6 +89,8 @@ SensorStatus mpu6050_init_adapter(SensorConfig config) {
     //
     // pinMode(I2C_INTERRUPT_PIN, INPUT_PULLUP);
     // attachInterrupt(digitalPinToInterrupt(I2C_INTERRUPT_PIN), mpuISR, FALLING);
+
+    return SENSOR_OK;
 }
 
 static bool mpu6050_readGyro_adapter(Axis3f *gyro)

@@ -36,6 +36,11 @@ extern "C" {
 #endif
 
 #include "i2cdev.h"
+#include "qpc.h"
+
+enum {
+    MPU6050_TEST_SIG = QS_USER1,
+};
 
 #define MPU6050_ADDRESS_AD0_LOW     0x68 // address pin low (GND), default for InvenSense evaluation board
 #define MPU6050_ADDRESS_AD0_HIGH    0x69 // address pin high (VCC)
