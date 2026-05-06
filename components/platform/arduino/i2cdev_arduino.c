@@ -1,3 +1,7 @@
+///*****************************************************************************
+/// TODO: Remove this, utilize platform/common/i2cdev.c instead.
+///*****************************************************************************
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>

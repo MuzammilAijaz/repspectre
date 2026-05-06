@@ -76,6 +76,8 @@ void setSensorBusDef(const I2cDef* const busDef);
  */
 void i2cdrvInit(I2cDrv *i2c);
 
+void i2cdrvDeInit(I2cDrv *i2c);
+
 /**
  * Send or receive a message over the I2C bus.
  *
@@ -128,6 +130,8 @@ void i2cdrvCreateMessageIntAddr(I2cMessage *message,
  * @see ./platform/ for implementations.
  */
 void i2cdrvInitBus(I2cDrv *i2c);
+
+void i2cdrvDeInitBus(I2cDrv *i2c);
 
 #ifdef __cplusplus
 }

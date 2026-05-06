@@ -93,6 +93,11 @@ void i2cdrvInit(I2cDrv *i2c)
     i2cdrvInitBus(i2c);
 }
 
+void i2cdrvDeInit(I2cDrv *i2c)
+{
+    i2cdrvDeInitBus(i2c);
+}
+
 void i2cdrvTryToRestartBus(I2cDrv *i2c)
 {
     i2cdrvInitBus(i2c);

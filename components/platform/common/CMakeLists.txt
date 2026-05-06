@@ -1,7 +1,7 @@
 add_library(platform-common INTERFACE)
 
 target_sources(platform-common INTERFACE
-    i2cdev_i2c_common.c
+    i2cdev.c
 )
 
 target_include_directories(platform-common

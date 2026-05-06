@@ -33,6 +33,10 @@
 # -----
 # - Avoid copying/recompiling of libraries headers like qpc to shorten times
 #
+# CHECK:
+# -------
+# - does reflash, if device disconnected but when firmware cache remains same?
+#
 #*****************************************************************************
 
 option(REPSPECTRE_ENABLE_HIL_TESTS "Enable Arduino hardware-in-the-loop (HIL) tests" OFF)

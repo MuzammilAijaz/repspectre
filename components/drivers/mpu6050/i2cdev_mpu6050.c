@@ -57,6 +57,32 @@ void mpu6050Init(I2C_Dev *i2cPort)
 
 }
 
+void mpu6050Deinit(void)
+{
+    if (isInit) {
+        mpu6050Reset();
+        // recommended delay after resetting
+        vTaskDelay(M2T(50));
+
+        mpu6050SetSleepEnabled(true);
+
+        // disable interrupts
+        mpu6050SetIntEnabled(0);
+        // disable specific sources
+        mpu6050SetIntDataReadyEnabled(false);
+        mpu6050SetIntFIFOBufferOverflowEnabled(false);
+        // reset FIFO
+        mpu6050SetFIFOEnabled(false); // resetting fifo requires it to be off.
+        mpu6050ResetFIFO();
+        // clear INT status
+        (void)mpu6050GetIntStatus();
+
+        isInit = false;
+        I2Cx = NULL;
+    }
+}
+
+
 bool mpu6050Test(void)
 {
     bool testStatus;

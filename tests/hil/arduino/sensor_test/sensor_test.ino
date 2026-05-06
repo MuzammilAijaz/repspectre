@@ -1,4 +1,15 @@
+///*****************************************************************************
+/// Qutest fixture for testing sensor
+///-----------------------------------------------------------------------------
+///
+/// QS specific Tips:
+/// -----------------
+///  - do NOT disable system interrupts.
+///
+///*****************************************************************************
+
 #include <Arduino.h>
+#include <semphr.h>
 
 extern "C" {
 #include "i2c.h"
@@ -20,7 +31,9 @@ enum {
     COMMAND_TEST_SIG = 123,
 };
 
+static bool sensorConfigured = false;
 static uint16_t l_adc;
+// static SemaphoreHandle_t mpuIsrSem;
 
 static uint16_t ADC_read(void) {
     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
@@ -60,6 +73,7 @@ static void run_test_fixture() {
 }
 
 void setup() {
+    // mpuIsrSem = xSemaphoreCreateBinary();
     run_test_fixture();
 }
 
@@ -96,11 +110,16 @@ void QS_onCommand(uint8_t cmdId,
                     .fifo_size = 1000,
                 };
 
+                // Spy_setMpuIsrSemaphore(&mpuIsrSem);
+
                 SensorStatus status = arduinoSensorInteface.Sensor_init(config);
                 if (status != SENSOR_OK) {
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                         QS_STR("MPU6050 Init Failed");
                     QS_END();
+                }
+                else {
+                    sensorConfigured = true;
                 }
                 break;
             }
@@ -112,7 +131,9 @@ void QS_onCommand(uint8_t cmdId,
                 gyro.x = 0.0f;
                 gyro.y = 0.0f;
                 gyro.z = 0.0f;
+                // noInterrupts();
                 arduinoSensorInteface.Sensor_readAcc(&gyro);
+                // interrupts();
                 if (gyro.x == 0.0f) {
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                         QS_STR("MPU6050_GYRO: ZERO");
@@ -129,8 +150,13 @@ void QS_onCommand(uint8_t cmdId,
         // Check if ISR Called
         case 3U:
             {
-                bool val = Spy_getMpuFlag();
+                // noInterrupts();
+                // bool val = Spy_getMpuFlag();
+                Spy_checkLatestMpuISR();
+                bool val = Spy_getFifoIsrFlag();
+                Spy_resetFifoIsrFlag();
                 Spy_resetMpuFlag();
+                // interrupts();
                 if (val) {
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                         QS_STR("Mpu6050 Isr Called");
@@ -138,7 +164,7 @@ void QS_onCommand(uint8_t cmdId,
                 }
                 else {
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                        QS_STR("Mpu6050 Isr Missing");
+                        QS_STR("Mpu6050 Isr Not Called");
                     QS_END();
                 }
                 break;
@@ -165,9 +191,78 @@ void QS_onCommand(uint8_t cmdId,
         // Reset FIFO
         case 5U:
             {
+                // reset only works if FIFO disabled first
+                mpu6050SetFIFOEnabled(false);
                 mpu6050ResetFIFO();
+                mpu6050SetFIFOEnabled(true);
                 break;
             }
+
+        // reset mpu6050 hardware state
+        case 6U:
+            {
+                if (sensorConfigured) {
+                    Spy_disableMpuInterrupt();
+                    Spy_resetMpuFlag();
+                    Spy_resetFifoIsrFlag();
+
+                    mpu6050Deinit();
+
+                    sensorConfigured = false;
+                }
+                break;
+            }
+
+        // wait x ms; semaphore edition
+        case 88U:
+            {
+                uint32_t startTick = millis();
+
+                while (true) {
+                    if (Spy_getMpuFlag()) {
+                        Spy_checkLatestMpuISR();
+
+                        if (Spy_getFifoIsrFlag()) {
+                            Spy_resetMpuFlag();
+                            Spy_resetFifoIsrFlag();
+                            break;
+                        }
+                    }
+                }
+
+                uint32_t endTick = millis();
+                uint32_t elapsed = endTick - startTick;
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("delay");
+                    QS_U32(0, elapsed);
+                QS_END();
+
+                break;
+            }
+
+        // wait x ms; semaphore edition
+        // case 7U:
+        //     {
+        //         uint32_t timeout_ms = param1;
+        //
+        //         // Clear any stale signal
+        //         xSemaphoreTake(mpuIsrSem, 0);
+        //
+        //         TickType_t ticks = pdMS_TO_TICKS(timeout_ms);
+        //
+        //         BaseType_t result = xSemaphoreTake(mpuIsrSem, ticks);
+        //
+        //         QS_BEGIN_ID(COMMAND_TEST_SIG, 1U)
+        //             if (result == pdTRUE) {
+        //                 QS_STR("ISR occurred before timeout");
+        //             } else {
+        //                 QS_STR("Timeout expired");
+        //             }
+        //         QS_END();
+        //
+        //         break;
+        //     }
+
 
         default:
             break;
@@ -180,7 +275,20 @@ void QS_onCommand(uint8_t cmdId,
 void QS_onTestSetup(void) {
 }
 
+/** Runs after every test in the qutest script.
+ * @see `on_reset` inside qutest script, which runs on every mcu reset
+ */
 void QS_onTestTeardown(void) {
+    if (sensorConfigured) {
+        Spy_disableMpuInterrupt();
+        Spy_resetMpuFlag();
+        Spy_resetFifoIsrFlag();
+
+        mpu6050Deinit();
+        i2cdrvDeInit(&sensorsBus);
+
+        sensorConfigured = false;
+    }
 }
 
 void QS_onTestEvt(QEvt *e) {

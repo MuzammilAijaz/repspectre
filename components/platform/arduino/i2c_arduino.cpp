@@ -1,4 +1,4 @@
-#include "i2c.h" // TODO: extern c
+#include "i2c.h"
 #include <Wire.h>
 
 static TwoWire* getWire(uint32_t port) {
@@ -14,11 +14,30 @@ void i2cdrvInitBus(I2cDrv *i2c) {
     i2c->isBusFreeMutex = xSemaphoreCreateMutex();
 }
 
+void i2cdrvDeInitBus(I2cDrv *i2c) {
+    if (!i2c) return;
+
+    TwoWire* wire = getWire(i2c->def->i2cPort);
+
+#if defined(ARDUINO_ESP)
+    wire->end();
+#endif
+
+    // Release pins (VERY important)
+    pinMode(i2c->def->gpioSDAPin, INPUT);
+    pinMode(i2c->def->gpioSCLPin, INPUT);
+
+    if (i2c->isBusFreeMutex) {
+        vSemaphoreDelete(i2c->isBusFreeMutex);
+        i2c->isBusFreeMutex = NULL;
+    }
+}
+
 bool i2cdrvMessageTransfer(I2cDrv *i2c, I2cMessage *message) {
     TwoWire* wire = getWire(i2c->def->i2cPort);
     bool success = false;
 
-    if (xSemaphoreTake(i2c->isBusFreeMutex, portMAX_DELAY) == pdTRUE) {
+    if (xSemaphoreTake(i2c->isBusFreeMutex, (TickType_t)5) == pdTRUE) {
         // Handle Register Address (Repeated Start logic)
         if (message->internalAddress != I2C_NO_INTERNAL_ADDRESS) {
             wire->beginTransmission(message->slaveAddress);
