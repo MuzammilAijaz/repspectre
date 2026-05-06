@@ -46,6 +46,7 @@ void Spy_disableMpuInterrupt(void) {
         detachInterrupt(interrupt_num);
      }
  }
+static uint8_t lastStatus;
 
 static void MPU6050_ISR_ATTR mpuISR(void) {
     mpuIsrOccurred = true;
@@ -112,10 +113,10 @@ SensorStatus mpu6050_init_adapter(SensorConfig config) {
     pinMode(I2C_INTERRUPT_PIN, INPUT_PULLUP);
     int const interrupt_num = digitalPinToInterrupt(I2C_INTERRUPT_PIN);
     if (interrupt_num == NOT_AN_INTERRUPT) return ERR_I2C;
-    attachInterrupt(interrupt_num, mpuISR, RISING);
+    attachInterrupt(interrupt_num, mpuISR, FALLING);
 
     mpu6050SetInterruptMode(false); // active-low
-    mpu6050SetInterruptLatch(true); // CAUTION: requires mpu6050GetIntStatus() to clear
+    mpu6050SetInterruptLatch(false); // CAUTION: requires mpu6050GetIntStatus() to clear
     mpu6050SetInterruptDrive(true); // open-drain
 
     mpu6050SetIntFIFOBufferOverflowEnabled(true);

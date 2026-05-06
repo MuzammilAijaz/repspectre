@@ -5,6 +5,7 @@
 /// QS specific Tips:
 /// -----------------
 ///  - do NOT disable system interrupts.
+///  - do NOT print/trace inside interrupts?
 ///
 ///*****************************************************************************
 
@@ -81,6 +82,12 @@ void loop() {
     (void)QF_run();
 }
 
+void fullInterruptClear() {
+    (void)mpu6050GetIntStatus();  // clear latched interrupt
+    Spy_resetMpuFlag();
+    Spy_resetFifoIsrFlag();
+}
+
 void QS_onCommand(uint8_t cmdId,
         uint32_t param1,
         uint32_t param2,
@@ -150,10 +157,12 @@ void QS_onCommand(uint8_t cmdId,
         // Check if ISR Called
         case 3U:
             {
-                // noInterrupts();
-                // bool val = Spy_getMpuFlag();
+                Spy_resetMpuFlag();
+                Spy_resetFifoIsrFlag();
+
                 Spy_checkLatestMpuISR();
                 bool val = Spy_getFifoIsrFlag();
+
                 Spy_resetFifoIsrFlag();
                 Spy_resetMpuFlag();
                 // interrupts();
@@ -173,6 +182,7 @@ void QS_onCommand(uint8_t cmdId,
         // wait x ms; use-case: see if fifo filled.
         case 4U:
             {
+                fullInterruptClear();
                 uint32_t startTick = millis();
 
                 delay(param1);
@@ -195,6 +205,7 @@ void QS_onCommand(uint8_t cmdId,
                 mpu6050SetFIFOEnabled(false);
                 mpu6050ResetFIFO();
                 mpu6050SetFIFOEnabled(true);
+                fullInterruptClear();
                 break;
             }
 
@@ -213,17 +224,21 @@ void QS_onCommand(uint8_t cmdId,
                 break;
             }
 
-        // wait x ms; semaphore edition
         case 88U:
             {
+                // clear everything BEFORE measuring
+                fullInterruptClear();
+
+                // small delay to let line stabilize
+                delay(1);
                 uint32_t startTick = millis();
 
                 while (true) {
                     if (Spy_getMpuFlag()) {
+                        Spy_resetMpuFlag();
                         Spy_checkLatestMpuISR();
 
                         if (Spy_getFifoIsrFlag()) {
-                            Spy_resetMpuFlag();
                             Spy_resetFifoIsrFlag();
                             break;
                         }
@@ -237,6 +252,29 @@ void QS_onCommand(uint8_t cmdId,
                     QS_U32(0, elapsed);
                 QS_END();
 
+                break;
+            }
+
+        case 89U:
+            {
+                mpu6050ResetFIFO();
+                uint8_t mpuIntStatus;
+                uint16_t fifoCount;
+                unsigned long lastOverflowTime = 0;
+                mpuIntStatus = mpu6050GetIntStatus();
+                fifoCount = mpu6050GetFIFOCount();
+
+                if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
+                    unsigned long now = millis();
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("FIFO Overflow");
+                    QS_U32(0, (now - lastOverflowTime));
+                    QS_END();
+
+                    lastOverflowTime = now;
+
+                    mpu6050ResetFIFO();
+                }
                 break;
             }
 
