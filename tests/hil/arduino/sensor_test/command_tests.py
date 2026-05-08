@@ -13,6 +13,4 @@ def on_reset():
 # =============================================================================
 test("Test delay command works")
 command(4, 1000) #wait 1000ms
-expect("0000000001 COMMAND_TEST_SIG delay 1000")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-

@@ -15,9 +15,10 @@
 #endif
 
 static I2cDrv* i2c = NULL;
-volatile bool mpuFifoOverflowFlagWasSet = false;
+volatile bool mpuSampleReadyFlagWasSet = false;
 volatile bool mpuIsrOccurred = false;
 static SemaphoreHandle_t* mpuIsrSem = NULL;
+volatile uint32_t mpuIsrCount = 0;
 
 static void MPU6050_ISR_ATTR mpuISR(void);
 
@@ -25,7 +26,8 @@ void mpu6050_DICTIONARY(void) {
     QS_FUN_DICTIONARY(&mpuISR);
 }
 
-// DELETE
+// ==== Spy Interface ==========================================================
+
 bool Spy_getMpuFlag() {
     return mpuIsrOccurred;
 }
@@ -33,11 +35,18 @@ void Spy_resetMpuFlag() {
     mpuIsrOccurred = false;
 }
 
-bool Spy_getFifoIsrFlag(void) {
-    return mpuFifoOverflowFlagWasSet;
+bool Spy_getSampleReadyFlag(void) {
+    return mpuSampleReadyFlagWasSet;
 }
-void Spy_resetFifoIsrFlag(void) {
-    mpuFifoOverflowFlagWasSet = false;
+void Spy_resetSampleReadyFlag(void) {
+    mpuSampleReadyFlagWasSet = false;
+}
+
+uint32_t Spy_getIsrCount(void) {
+    return mpuIsrCount;
+}
+void Spy_resetIsrCount(void) {
+    mpuIsrCount = 0;
 }
 
 void Spy_disableMpuInterrupt(void) {
@@ -45,20 +54,7 @@ void Spy_disableMpuInterrupt(void) {
     if (interrupt_num != NOT_AN_INTERRUPT) {
         detachInterrupt(interrupt_num);
      }
- }
-static uint8_t lastStatus;
-
-static void MPU6050_ISR_ATTR mpuISR(void) {
-    mpuIsrOccurred = true;
 }
-
-// static void MPU6050_ISR_ATTR SpyMpuISR(void) {
-//     mpuIsrOccurred = true;
-//     assert(mpuIsrSem != NULL);
-//     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-//     xSemaphoreGiveFromISR(mpuIsrSem, &xHigherPriorityTaskWoken);
-//     portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-// }
 
 void Spy_setMpuIsrSemaphore(SemaphoreHandle_t* sem) {
     mpuIsrSem = sem;
@@ -73,9 +69,33 @@ void Spy_checkLatestMpuISR(void) {
             QS_STR("I2C ERROR");
         QS_END();
     }
-    else if (status & (1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT)) {
-        mpuFifoOverflowFlagWasSet = true;
+    else if (status & ((1 << MPU6050_INTERRUPT_DMP_INT_BIT)
+            | (1 << MPU6050_INTERRUPT_DATA_RDY_BIT))) {
+        mpuSampleReadyFlagWasSet = true;
     }
+}
+// =============================================================================
+
+static void MPU6050_ISR_ATTR mpuISR(void) {
+    mpuIsrOccurred = true;
+    mpuIsrCount++;
+}
+
+static uint8_t mpu6050SampleRateDivider(uint16_t sample_rate_hz) {
+    if (sample_rate_hz == 0U) {
+        return 0U;
+    }
+
+    if (sample_rate_hz >= 1000U) {
+        return 0U;
+    }
+
+    uint16_t divider = (uint16_t)(1000U / sample_rate_hz);
+    if (divider == 0U) {
+        return 0U;
+    }
+
+    return (uint8_t)(divider - 1U);
 }
 
 // Helper function.., doesnt belong here
@@ -87,27 +107,20 @@ void setI2cDriver(I2cDrv* i2c_driver) {
 SensorStatus mpu6050_init_adapter(SensorConfig config) {
     assert(i2c != NULL);
 
-    // TODO: utilize the config;
-    (void)config;
-
     mpu6050Init(i2c);
-    mpu6050SetRate(200);
+    mpu6050SetRate(mpu6050SampleRateDivider(config.sample_rate_hz));
     mpu6050SetSleepEnabled(false);
 
     // Why Gryo? Gyro-based PLL is less noisy and more accurate than internal clock
     // Why XGryo? just a convention
     mpu6050SetClockSource(MPU6050_CLOCK_PLL_XGYRO);
 
-    // ---- Set FIFO -----------------------------------------------
-    // At 200hz with 6 values in FIFO, it would take 30 ms to fill
-    mpu6050SetFIFOEnabled(false); // resetting fifo requires it to be off.
+    // ---- Interrupt-driven sample ready mode --------------------
+    // The fixture stays non-polling: we let the MPU drive a GPIO interrupt
+    // whenever a new sample or DMP packet is ready, then check the latched
+    // interrupt status from the test command.
+    mpu6050SetFIFOEnabled(false);
     mpu6050ResetFIFO();
-    mpu6050SetFIFOEnabled(true);
-    mpu6050SetAccelFIFOEnabled(true);
-    mpu6050SetXGyroFIFOEnabled(true);
-    mpu6050SetYGyroFIFOEnabled(true);
-    mpu6050SetZGyroFIFOEnabled(true);
-    mpu6050SetTempFIFOEnabled(false);
 
     // Arduino: setup interrupt
     pinMode(I2C_INTERRUPT_PIN, INPUT_PULLUP);
@@ -119,15 +132,22 @@ SensorStatus mpu6050_init_adapter(SensorConfig config) {
     mpu6050SetInterruptLatch(false); // CAUTION: requires mpu6050GetIntStatus() to clear
     mpu6050SetInterruptDrive(true); // open-drain
 
-    mpu6050SetIntFIFOBufferOverflowEnabled(true);
-    mpu6050SetIntDataReadyEnabled(false);
-    // mpu6050SetIntEnabled(1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT);
+    mpu6050SetIntFIFOBufferOverflowEnabled(false);
+    mpu6050SetIntDataReadyEnabled(true);
+
+    if (config.enable_dmp) {
+        mpu6050SetIntDMPEnabled(true);
+        mpu6050SetDMPEnabled(true);
+    } else {
+        mpu6050SetIntDMPEnabled(false);
+        mpu6050SetDMPEnabled(false);
+    }
 
     // Clear any pending status after the GPIO interrupt is armed, so the first
     // real data-ready event produces a fresh falling edge.
     (void)mpu6050GetIntStatus();
 
-    mpuFifoOverflowFlagWasSet = false;
+    mpuSampleReadyFlagWasSet = false;
     mpuIsrOccurred = false;
     // -------------------------------------------------------------
 

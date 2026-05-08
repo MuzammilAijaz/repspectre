@@ -191,13 +191,6 @@ void QS_onCommand(uint8_t cmdId,
                 break;
             }
 
-        case *U:
-            {
-                fullInterruptStateClear();
-                delay(param1);
-                break;
-            }
-
         // Clear pending interrupt state
         case 5U:
             {

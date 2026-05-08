@@ -9,12 +9,11 @@
 #     target executes
 #     Trg-Done (target signals completion)
 #
-# Information:
-# ------------
-#  - Enums used are known from bindings from c i.e. @see enum signals starting from QS_USER
 #*****************************************************************************
 
 from enum import IntEnum
+import time
+import math
 
 class RecordType(IntEnum):
     # QS_USER0
@@ -52,52 +51,83 @@ expect("@timestamp HIL_TEST_SIG ADC_read 42")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
+test("Interrupt: no phantom event after clear")
+command(1)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(5)
+start = time.time()
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(7)
+end = time.time()
+duration = end - start
+count = math.ceil(duration / (500/2))
+expect(f"@timestamp HIL_TEST_SIG STATE * {count}")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+test("Interrupt: no phantom event after clear")
+command(1)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(5)
+start = time.time()
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(4, 2)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(7)
+end = time.time()
+duration = end - start
+count = math.ceil(duration / (500/2))
+expect(f"@timestamp HIL_TEST_SIG STATE  {count}")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+test("Interrupt: no phantom event after clear")
+command(1)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(5)
+start = time.time()
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(4, 1000)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(7)
+end = time.time()
+duration = end - start
+count = math.ceil(duration / (500/2))
+print(f"COUNT --------- {count} ---------- ")
+expect(f"@timestamp HIL_TEST_SIG STATE * {count}")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# =============================================================================
 test("Read: Check if any non-zero value is read by the mpu6050")
 command(1)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-# expect_run()
 command(2)
 expect("@timestamp HIL_TEST_SIG MPU6050_GYRO: NON-zero")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
-test("Read: MPU6050 isr called on FIFO full")
+test("Interrupt: MPU6050 sample-ready interrupt is called")
 command(1)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(5)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(4, 2000)# passes
+command(4, 4)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(3)
-expect("@timestamp HIL_TEST_SIG Mpu6050 Isr Called")
+expect("@timestamp HIL_TEST_SIG Mpu6050 Sample Ready")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
-test("Read: MPU6050 isr not called when FIFO is not full")
+test("Interrupt: MPU6050 sample-ready interrupt stays non-polling")
 note("""
-For an mpu6050, with 1024 byte FIFO and 12 bytes of data per sample (all axis values),
-with 200hz polling rate, it would take:
-
-1024/12   = 85.3333.. | samples required to fill FIFO
-85.33/200 = 0.4267    | seconds to fill FIFO
+The fixture runs the MPU at 500Hz, so a new sample should be ready about every 2ms.
+The target code does not poll the FIFO or the interrupt line; the qutest command
+only checks the already-latched status after a short delay.
 """)
 command(1)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(5)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(4, 2)
-# command(4, 3) # fails!!
-expect("@timestamp Trg-Done QS_RX_COMMAND")
+# command(4, 0.001)
+# expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(3)
-expect("@timestamp HIL_TEST_SIG Mpu6050 Isr Not Called")
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-
-# =============================================================================
-test("measure time for FIFO fill")
-command(1)
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(5)
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(88)
-expect("@timestamp HIL_TEST_SIG delay ") # still takes 4 ms!!!
+expect("@timestamp HIL_TEST_SIG Mpu6050 Sample Ready")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
