@@ -15,10 +15,12 @@
 extern "C" {
 #include "i2c.h"
 #define ARDUINO_ESP
+// FIXME: define doesnt enable the ifdef!!! @see mpu6050.h
+#define MPU6050_INCLUDE_DMP_MOTIONAPPS20 // NOTE: required for enabling DMP!!!
+#include "mpu6050.h"
 #include "sensor_arduino.h"
 #include "qpc.h"
 #include "i2c_config_arduino.h"
-#include "mpu6050.h"
 }
 
 Q_DEFINE_THIS_FILE
@@ -191,17 +193,31 @@ void QS_onCommand(uint8_t cmdId,
                 break;
             }
 
-        case *U:
+        // Delay + Count interrupt loop.
+        case 8U:
             {
                 fullInterruptStateClear();
-                delay(param1);
-                break;
-            }
+                int start = millis();
+                int current = 0;
 
-        // Clear pending interrupt state
-        case 5U:
-            {
-                fullInterruptStateClear();
+                while (true) {
+                    current = millis();
+                    if (current - start >= param1) {
+                        break;
+                    }
+
+                    // constantly clear the mpuDataReadyInterrupt
+                    if (Spy_getMpuFlag()) {
+                        Spy_resetMpuFlag();
+                        Spy_checkLatestMpuISR();
+
+                        if (Spy_getSampleReadyFlag()) {
+                            Spy_resetSampleReadyFlag();
+                            Spy_incrementSampleReadyFlagCount();
+                        }
+                    }
+                }
+
                 break;
             }
 
@@ -226,12 +242,14 @@ void QS_onCommand(uint8_t cmdId,
                 uint32_t isrCount = Spy_getIsrCount();
 
                 Spy_checkLatestMpuISR();
-                bool ready = Spy_getSampleReadyFlag();
+                bool lastSampleReadyState = Spy_getSampleReadyFlag();
+                uint32_t sampleReadyCount = Spy_getSampleReadyFlagCount();
 
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR("STATE");
                     QS_U32(0, isrCount);
-                    QS_U8(0, ready);
+                    QS_U32(0, sampleReadyCount);
+                    QS_U8(0, lastSampleReadyState);
                 QS_END();
 
                 break;

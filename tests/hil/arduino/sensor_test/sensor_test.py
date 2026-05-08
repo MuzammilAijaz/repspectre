@@ -64,7 +64,7 @@ count = math.ceil(duration / (500/2))
 expect(f"@timestamp HIL_TEST_SIG STATE * {count}")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
-test("Interrupt: no phantom event after clear")
+test("Interrupt: no phantom event after clear short")
 command(1)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(5)
@@ -76,16 +76,16 @@ command(7)
 end = time.time()
 duration = end - start
 count = math.ceil(duration / (500/2))
-expect(f"@timestamp HIL_TEST_SIG STATE  {count}")
+expect(f"@timestamp HIL_TEST_SIG STATE * {count}")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
-test("Interrupt: no phantom event after clear")
+test("Interrupt: no phantom event after clear long")
 command(1)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(5)
 start = time.time()
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(4, 1000)
+command(4, 500)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(7)
 end = time.time()
@@ -93,6 +93,35 @@ duration = end - start
 count = math.ceil(duration / (500/2))
 print(f"COUNT --------- {count} ---------- ")
 expect(f"@timestamp HIL_TEST_SIG STATE * {count}")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+test("Interrupt: no phantom event after clear with counted loop")
+note(
+"""
+The mpu6050 was configured for 500hz.
+Test results:
+    with 500ms delay:
+        11702 interrupts, with 2884 data ready samples
+        = 0.043 ms and 0.173 ms
+    with 1000ms delay:
+        23658 interrupts, with 5757 data ready samples
+        = 0.042 ms and 0.174 ms
+"""
+)
+command(1)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(5)
+start = time.time()
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(8, 1000)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(7)
+end = time.time()
+duration = end - start
+count = round(duration * 500)
+print(f"COUNT --------- {count} ---------- ")
+print(f"DURATION --------- {duration} ---------- ")
+expect(f"@timestamp HIL_TEST_SIG STATE  {count}")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
