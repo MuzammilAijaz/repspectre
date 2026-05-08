@@ -31,6 +31,13 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+#include <math.h>
+#include <string.h>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #include "i2cdev.h"
 #include "mpu6050.h"
 #include "config.h"
@@ -3708,94 +3715,329 @@ bool mpu6050WriteDMPConfigurationSet(const uint8_t *data, uint16_t dataSize)
 }
 
 static uint16_t dmpPacketSize;
-uint8_t mpu6050DmpInitialize() {
-	// reset device
-	mpu6050Reset();
+static uint8_t dmpPacketBuffer[42];
 
-    vTaskDelay(M2T(30)); // wait after reset
+/** Single monolithic function to setup interrupts, i2c, mpu6050 and the dmp. */
+uint8_t mpu6050DmpInitialize(void)
+{
+    mpu6050Reset();
+    vTaskDelay(M2T(30));
 
-	// enable sleep mode and wake cycle
-	/*Serial.println(F("Enabling sleep mode..."));
-	setSleepEnabled(true);
-	Serial.println(F("Enabling wake cycle..."));
-	setWakeCycleEnabled(true);*/
+    mpu6050SetSleepEnabled(false);
 
-	// disable sleep mode
-	mpu6050SetSleepEnabled(false);
+    mpu6050SetMemoryBank(0x10, true, true);
+    mpu6050SetMemoryStartAddress(0x06);
+    (void)mpu6050ReadMemoryByte();
+    mpu6050SetMemoryBank(0, false, false);
+    (void)mpu6050GetOTPBankValid();
 
-	// get MPU hardware revision
-	mpu6050SetMemoryBank(0x10, true, true);
-	mpu6050SetMemoryStartAddress(0x06);
-	mpu6050SetMemoryBank(0, false, false);
-
-	// check OTP bank valid
-
-	// setup weird slave stuff (?)
-	mpu6050SetSlaveAddress(0, 0x7F);
-	mpu6050SetI2CMasterModeEnabled(false);
-	mpu6050SetSlaveAddress(0, 0x68);
-	mpu6050ResetI2CMaster();
-
+    mpu6050SetSlaveAddress(0, 0x7F);
+    mpu6050SetI2CMasterModeEnabled(false);
+    mpu6050SetSlaveAddress(0, MPU6050_DEFAULT_ADDRESS);
+    mpu6050ResetI2CMaster();
     vTaskDelay(M2T(20));
 
-	mpu6050SetClockSource(MPU6050_CLOCK_PLL_ZGYRO);
+    mpu6050SetClockSource(MPU6050_CLOCK_PLL_ZGYRO);
+    mpu6050SetIntEnabled((1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT) |
+                         (1 << MPU6050_INTERRUPT_DMP_INT_BIT));
+    mpu6050SetRate(4); // 1 kHz / (1 + 4) = 200 Hz
+    mpu6050SetExternalFrameSync(MPU6050_EXT_SYNC_TEMP_OUT_L);
+    mpu6050SetDLPFMode(MPU6050_DLPF_BW_42);
+    mpu6050SetFullScaleGyroRange(MPU6050_GYRO_FS_2000);
 
-	mpu6050SetIntEnabled(1<<MPU6050_INTERRUPT_FIFO_OFLOW_BIT|1<<MPU6050_INTERRUPT_DMP_INT_BIT);
+    if (!mpu6050WriteProgMemoryBlock(dmpMemory, MPU6050_DMP_CODE_SIZE, 0, 0, true)) {
+        return 1;
+    }
 
-	mpu6050SetRate(4); // 1khz / (1 + 4) = 200 Hz
-
-	mpu6050SetExternalFrameSync(MPU6050_EXT_SYNC_TEMP_OUT_L);
-
-	mpu6050SetDLPFMode(MPU6050_DLPF_BW_42);
-
-	mpu6050SetFullScaleGyroRange(MPU6050_GYRO_FS_2000);
-
-	// load DMP code into memory banks
-    bool mpu6050WriteProgMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t bank,
-                                 uint8_t address, bool verify)
-	if (!mpu6050WriteProgMemoryBlock(dmpMemory, MPU6050_DMP_CODE_SIZE, ??, devAddr, 1)) return 1; // Failed
-
-    // HACK:
 #ifndef MPU6050_DMP_FIFO_RATE_DIVISOR
-    #define MPU6050_DMP_FIFO_RATE_DIVISOR 0x01 // The New instance of the Firmware has this as the default
+#define MPU6050_DMP_FIFO_RATE_DIVISOR 0x01
 #endif
 
-	// Set the FIFO Rate Divisor int the DMP Firmware Memory
-	unsigned char dmpUpdate[] = {0x00, MPU6050_DMP_FIFO_RATE_DIVISOR};
-	mpu6050WriteMemoryBlock(dmpUpdate, 0x02, 0x02, 0x16); // Lets write the dmpUpdate data to the Firmware image, we have 2 bytes to write in bank 0x02 with the Offset 0x16
+    const uint8_t dmpUpdate[] = {0x00, MPU6050_DMP_FIFO_RATE_DIVISOR};
+    if (!mpu6050WriteMemoryBlock(dmpUpdate, sizeof(dmpUpdate), 0x02, 0x16, true)) {
+        return 1;
+    }
 
-	//write start address MSB into register
-	mpu6050SetDMPConfig1(0x03);
-	//write start address LSB into register
-	mpu6050SetDMPConfig2(0x00);
+    mpu6050SetDMPConfig1(0x03);
+    mpu6050SetDMPConfig2(0x00);
+    mpu6050SetOTPBankValid(false);
+    mpu6050SetMotionDetectionThreshold(2);
+    mpu6050SetZeroMotionDetectionThreshold(156);
+    mpu6050SetMotionDetectionDuration(80);
+    mpu6050SetZeroMotionDetectionDuration(0);
+    mpu6050SetFIFOEnabled(true);
+    mpu6050ResetDMP();
+    mpu6050SetDMPEnabled(false);
 
-	mpu6050SetOTPBankValid(false);
+    dmpPacketSize = 42;
 
-	mpu6050SetMotionDetectionThreshold(2);
+    mpu6050ResetFIFO();
+    (void)mpu6050GetIntStatus();
 
-	mpu6050SetZeroMotionDetectionThreshold(156);
-
-	mpu6050SetMotionDetectionDuration(80);
-
-	mpu6050SetZeroMotionDetectionDuration(0);
-	mpu6050SetFIFOEnabled(true);
-
-	mpu6050ResetDMP();
-
-
-	mpu6050SetDMPEnabled(false);
-
-	dmpPacketSize = 42;
-
-	mpu6050ResetFIFO();
-	mpu6050GetIntStatus();
-
-	return 0; // success
+    return 0;
 }
 
 bool mpu6050WriteProgDMPConfigurationSet(const uint8_t *data, uint16_t dataSize)
 {
     return mpu6050WriteDMPConfigurationSet(data, dataSize);
+}
+
+bool mpu6050DmpPacketAvailable(void)
+{
+    return mpu6050GetFIFOCount() >= mpu6050DmpGetFIFOPacketSize();
+}
+
+uint16_t mpu6050DmpGetFIFOPacketSize(void)
+{
+    return dmpPacketSize;
+}
+
+uint8_t mpu6050DmpGetCurrentFIFOPacket(uint8_t *data)
+{
+    if (data == NULL || dmpPacketSize == 0) {
+        return 1;
+    }
+
+    uint16_t fifoCount = mpu6050GetFIFOCount();
+    if (fifoCount < dmpPacketSize) {
+        return 1;
+    }
+
+    if (fifoCount > 1024) {
+        mpu6050ResetFIFO();
+        return 2;
+    }
+
+    while (fifoCount > dmpPacketSize) {
+        uint16_t discardCount = fifoCount - dmpPacketSize;
+        if (discardCount > sizeof(dmpPacketBuffer)) {
+            discardCount = sizeof(dmpPacketBuffer);
+        }
+
+        mpu6050GetFIFOBytes(dmpPacketBuffer, (uint8_t)discardCount);
+        fifoCount -= discardCount;
+    }
+
+    mpu6050GetFIFOBytes(data, (uint8_t)dmpPacketSize);
+    memcpy(dmpPacketBuffer, data, dmpPacketSize);
+    return 0;
+}
+
+static const uint8_t *mpu6050DmpPacketOrBuffer(const uint8_t *packet)
+{
+    return packet ? packet : dmpPacketBuffer;
+}
+
+static int16_t mpu6050DmpReadI16(const uint8_t *packet, uint8_t offset)
+{
+    return (int16_t)(((uint16_t)packet[offset] << 8) | packet[offset + 1]);
+}
+
+static int32_t mpu6050DmpReadI32(const uint8_t *packet, uint8_t offset)
+{
+    return (int32_t)(((uint32_t)packet[offset] << 24) |
+                     ((uint32_t)packet[offset + 1] << 16) |
+                     ((uint32_t)packet[offset + 2] << 8) |
+                     packet[offset + 3]);
+}
+
+uint8_t mpu6050DmpGetAccelInt32(int32_t *data, const uint8_t *packet)
+{
+    if (data == NULL) {
+        return 1;
+    }
+
+    packet = mpu6050DmpPacketOrBuffer(packet);
+    data[0] = mpu6050DmpReadI32(packet, 28);
+    data[1] = mpu6050DmpReadI32(packet, 32);
+    data[2] = mpu6050DmpReadI32(packet, 36);
+    return 0;
+}
+
+uint8_t mpu6050DmpGetAccelInt16(int16_t *data, const uint8_t *packet)
+{
+    if (data == NULL) {
+        return 1;
+    }
+
+    packet = mpu6050DmpPacketOrBuffer(packet);
+    data[0] = mpu6050DmpReadI16(packet, 28);
+    data[1] = mpu6050DmpReadI16(packet, 32);
+    data[2] = mpu6050DmpReadI16(packet, 36);
+    return 0;
+}
+
+uint8_t mpu6050DmpGetAccel(mpu6050VectorInt16_t *v, const uint8_t *packet)
+{
+    if (v == NULL) {
+        return 1;
+    }
+
+    int16_t data[3];
+    uint8_t status = mpu6050DmpGetAccelInt16(data, packet);
+    v->x = data[0];
+    v->y = data[1];
+    v->z = data[2];
+    return status;
+}
+
+uint8_t mpu6050DmpGetQuaternionInt32(int32_t *data, const uint8_t *packet)
+{
+    if (data == NULL) {
+        return 1;
+    }
+
+    packet = mpu6050DmpPacketOrBuffer(packet);
+    data[0] = mpu6050DmpReadI32(packet, 0);
+    data[1] = mpu6050DmpReadI32(packet, 4);
+    data[2] = mpu6050DmpReadI32(packet, 8);
+    data[3] = mpu6050DmpReadI32(packet, 12);
+    return 0;
+}
+
+uint8_t mpu6050DmpGetQuaternionInt16(int16_t *data, const uint8_t *packet)
+{
+    if (data == NULL) {
+        return 1;
+    }
+
+    packet = mpu6050DmpPacketOrBuffer(packet);
+    data[0] = mpu6050DmpReadI16(packet, 0);
+    data[1] = mpu6050DmpReadI16(packet, 4);
+    data[2] = mpu6050DmpReadI16(packet, 8);
+    data[3] = mpu6050DmpReadI16(packet, 12);
+    return 0;
+}
+
+uint8_t mpu6050DmpGetQuaternion(mpu6050Quaternion_t *q, const uint8_t *packet)
+{
+    if (q == NULL) {
+        return 1;
+    }
+
+    int16_t data[4];
+    uint8_t status = mpu6050DmpGetQuaternionInt16(data, packet);
+    q->w = (float)data[0] / 16384.0f;
+    q->x = (float)data[1] / 16384.0f;
+    q->y = (float)data[2] / 16384.0f;
+    q->z = (float)data[3] / 16384.0f;
+    return status;
+}
+
+uint8_t mpu6050DmpGetGyroInt32(int32_t *data, const uint8_t *packet)
+{
+    if (data == NULL) {
+        return 1;
+    }
+
+    packet = mpu6050DmpPacketOrBuffer(packet);
+    data[0] = mpu6050DmpReadI32(packet, 16);
+    data[1] = mpu6050DmpReadI32(packet, 20);
+    data[2] = mpu6050DmpReadI32(packet, 24);
+    return 0;
+}
+
+uint8_t mpu6050DmpGetGyroInt16(int16_t *data, const uint8_t *packet)
+{
+    if (data == NULL) {
+        return 1;
+    }
+
+    packet = mpu6050DmpPacketOrBuffer(packet);
+    data[0] = mpu6050DmpReadI16(packet, 16);
+    data[1] = mpu6050DmpReadI16(packet, 20);
+    data[2] = mpu6050DmpReadI16(packet, 24);
+    return 0;
+}
+
+uint8_t mpu6050DmpGetGyro(mpu6050VectorInt16_t *v, const uint8_t *packet)
+{
+    if (v == NULL) {
+        return 1;
+    }
+
+    int16_t data[3];
+    uint8_t status = mpu6050DmpGetGyroInt16(data, packet);
+    v->x = data[0];
+    v->y = data[1];
+    v->z = data[2];
+    return status;
+}
+
+uint8_t mpu6050DmpGetGravityInt16(int16_t *data, const uint8_t *packet)
+{
+    if (data == NULL) {
+        return 1;
+    }
+
+    int16_t q[4];
+    uint8_t status = mpu6050DmpGetQuaternionInt16(q, packet);
+    data[0] = ((int32_t)q[1] * q[3] - (int32_t)q[0] * q[2]) / 16384;
+    data[1] = ((int32_t)q[0] * q[1] + (int32_t)q[2] * q[3]) / 16384;
+    data[2] = ((int32_t)q[0] * q[0] - (int32_t)q[1] * q[1] -
+               (int32_t)q[2] * q[2] + (int32_t)q[3] * q[3]) / (2 * 16384L);
+    return status;
+}
+
+uint8_t mpu6050DmpGetGravity(mpu6050VectorFloat_t *v, const mpu6050Quaternion_t *q)
+{
+    if (v == NULL || q == NULL) {
+        return 1;
+    }
+
+    v->x = 2.0f * (q->x * q->z - q->w * q->y);
+    v->y = 2.0f * (q->w * q->x + q->y * q->z);
+    v->z = q->w * q->w - q->x * q->x - q->y * q->y + q->z * q->z;
+    return 0;
+}
+
+uint8_t mpu6050DmpGetLinearAccel(mpu6050VectorInt16_t *v, const mpu6050VectorInt16_t *vRaw,
+                                 const mpu6050VectorFloat_t *gravity)
+{
+    if (v == NULL || vRaw == NULL || gravity == NULL) {
+        return 1;
+    }
+
+    v->x = vRaw->x - (int16_t)(gravity->x * 8192.0f);
+    v->y = vRaw->y - (int16_t)(gravity->y * 8192.0f);
+    v->z = vRaw->z - (int16_t)(gravity->z * 8192.0f);
+    return 0;
+}
+
+uint8_t mpu6050DmpGetEuler(float *data, const mpu6050Quaternion_t *q)
+{
+    if (data == NULL || q == NULL) {
+        return 1;
+    }
+
+    data[0] = atan2f(2.0f * q->x * q->y - 2.0f * q->w * q->z,
+                     2.0f * q->w * q->w + 2.0f * q->x * q->x - 1.0f);
+    data[1] = -asinf(2.0f * q->x * q->z + 2.0f * q->w * q->y);
+    data[2] = atan2f(2.0f * q->y * q->z - 2.0f * q->w * q->x,
+                     2.0f * q->w * q->w + 2.0f * q->z * q->z - 1.0f);
+    return 0;
+}
+
+uint8_t mpu6050DmpGetYawPitchRoll(float *data, const mpu6050Quaternion_t *q,
+                                  const mpu6050VectorFloat_t *gravity)
+{
+    if (data == NULL || q == NULL || gravity == NULL) {
+        return 1;
+    }
+
+    data[0] = atan2f(2.0f * q->x * q->y - 2.0f * q->w * q->z,
+                     2.0f * q->w * q->w + 2.0f * q->x * q->x - 1.0f);
+    data[1] = atan2f(gravity->x, sqrtf(gravity->y * gravity->y + gravity->z * gravity->z));
+    data[2] = atan2f(gravity->y, gravity->z);
+    if (gravity->z < 0.0f) {
+        if (data[1] > 0.0f) {
+            data[1] = (float)M_PI - data[1];
+        } else {
+            data[1] = -(float)M_PI - data[1];
+        }
+    }
+
+    return 0;
 }
 
 // DMP_CFG_1 register

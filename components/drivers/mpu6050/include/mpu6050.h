@@ -807,7 +807,48 @@ bool mpu6050WriteMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t ban
 bool mpu6050WriteProgMemoryBlock(const uint8_t *data, uint16_t dataSize, uint8_t bank, uint8_t address, bool verify);
 
 bool mpu6050WriteDMPConfigurationSet(const uint8_t *data, uint16_t dataSize);
-bool mpu6050WiteProgDMPConfigurationSet(const uint8_t *data, uint16_t dataSize);
+bool mpu6050WriteProgDMPConfigurationSet(const uint8_t *data, uint16_t dataSize);
+
+typedef struct {
+    int16_t x;
+    int16_t y;
+    int16_t z;
+} mpu6050VectorInt16_t;
+
+typedef struct {
+    float x;
+    float y;
+    float z;
+} mpu6050VectorFloat_t;
+
+typedef struct {
+    float w;
+    float x;
+    float y;
+    float z;
+} mpu6050Quaternion_t;
+
+// ==== DMP functions ==========================================================
+// Ported from i2cdev: MPU6050_6Axis_MotionApps20.cpp/.h
+
+uint8_t mpu6050DmpInitialize(void);
+bool mpu6050DmpPacketAvailable(void);
+uint16_t mpu6050DmpGetFIFOPacketSize(void);
+uint8_t mpu6050DmpGetCurrentFIFOPacket(uint8_t *data);
+uint8_t mpu6050DmpGetAccelInt32(int32_t *data, const uint8_t *packet);
+uint8_t mpu6050DmpGetAccelInt16(int16_t *data, const uint8_t *packet);
+uint8_t mpu6050DmpGetAccel(mpu6050VectorInt16_t *v, const uint8_t *packet);
+uint8_t mpu6050DmpGetQuaternionInt32(int32_t *data, const uint8_t *packet);
+uint8_t mpu6050DmpGetQuaternionInt16(int16_t *data, const uint8_t *packet);
+uint8_t mpu6050DmpGetQuaternion(mpu6050Quaternion_t *q, const uint8_t *packet);
+uint8_t mpu6050DmpGetGyroInt32(int32_t *data, const uint8_t *packet);
+uint8_t mpu6050DmpGetGyroInt16(int16_t *data, const uint8_t *packet);
+uint8_t mpu6050DmpGetGyro(mpu6050VectorInt16_t *v, const uint8_t *packet);
+uint8_t mpu6050DmpGetGravityInt16(int16_t *data, const uint8_t *packet);
+uint8_t mpu6050DmpGetGravity(mpu6050VectorFloat_t *v, const mpu6050Quaternion_t *q);
+uint8_t mpu6050DmpGetLinearAccel(mpu6050VectorInt16_t *v, const mpu6050VectorInt16_t *vRaw, const mpu6050VectorFloat_t *gravity);
+uint8_t mpu6050DmpGetEuler(float *data, const mpu6050Quaternion_t *q);
+uint8_t mpu6050DmpGetYawPitchRoll(float *data, const mpu6050Quaternion_t *q, const mpu6050VectorFloat_t *gravity);
 
 // DMP_CFG_1 register
 uint8_t mpu6050GetDMPConfig1();
