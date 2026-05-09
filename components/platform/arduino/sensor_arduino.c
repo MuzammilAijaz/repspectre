@@ -98,8 +98,7 @@ void Spy_checkLatestMpuISR(void) {
             QS_STR("I2C ERROR");
         QS_END();
     }
-    else if (status & ((1 << MPU6050_INTERRUPT_DMP_INT_BIT)
-            | (1 << MPU6050_INTERRUPT_DATA_RDY_BIT))) {
+    else if (status & (1 << MPU6050_INTERRUPT_DATA_RDY_BIT)) {
         mpuSampleReadyFlagWasSet = true;
     }
     // else if (status & (1 << MPU6050_INTERRUPT_DATA_RDY_BIT)) {
