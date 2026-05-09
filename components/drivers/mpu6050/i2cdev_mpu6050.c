@@ -110,7 +110,21 @@ bool mpu6050Test(void)
 bool mpu6050TestConnection()
 {
     vTaskDelay(M2T(100));
-    return mpu6050GetDeviceID() == 0b110100;
+
+#define MPU6500
+#ifdef MPU6500
+    // MPU6500: WHO_AM_I register = 0x70
+    // Bits [6:1] = 0b111000 = 0x38 → what mpu6050GetDeviceID() returns
+    #define MPU6050_WHO_AM_I_VALUE 0x38
+#endif
+#ifdef MPU6050
+    // MPU6050: WHO_AM_I register = 0x68
+    // Bits [6:1] = 0b110100 = 0x34 → what mpu6050GetDeviceID() returns
+    #define MPU6050_WHO_AM_I_VALUE 0x34
+#endif
+
+    // return mpu6050GetDeviceID() == 0b110100; // commented for original reference
+    return mpu6050GetDeviceID() == MPU6050_WHO_AM_I_VALUE;
 }
 
 /** Do a MPU6050 self test.
