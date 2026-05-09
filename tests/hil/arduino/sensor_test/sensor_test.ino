@@ -282,6 +282,16 @@ void QS_onCommand(uint8_t cmdId,
                 break;
             }
 
+        // get value of interrupt register; shows all the enabled interrupts currently
+        case 12U:
+            {
+                uint8_t enabled = mpu6050GetIntEnabled();
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("Interrupt Register:");
+                        QS_U8(0, enabled);
+                    QS_END();
+            }
+
         // wait x ms; semaphore edition
         // case 7U:
         //     {

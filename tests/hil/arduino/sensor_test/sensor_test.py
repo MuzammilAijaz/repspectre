@@ -28,6 +28,35 @@ class RecordType(IntEnum):
     # QS_USER4
     COMMAND_TEST_SIG = 123
 
+# =============================================================================
+# | Helper Functions
+# =============================================================================
+
+def bin8_to_int(binary_str):
+    """
+    Converts an 8-bit binary string to an integer.
+
+    Args:
+        binary_str (str): A string of 8 characters, e.g. '10101010'.
+
+    Returns:
+        int: The integer value of the binary string.
+
+    Raises:
+        ValueError: If the input is not 8 characters or contains non-binary digits.
+    """
+    if len(binary_str) != 8:
+        raise ValueError("Input must be exactly 8 characters long")
+    if not all(c in '01' for c in binary_str):
+        raise ValueError("Input must only contain 0 or 1")
+
+    return int(binary_str, 2)
+
+
+# =============================================================================
+# | Tests
+# =============================================================================
+
 def on_reset():
     """
     Runs on every mcu reset.
@@ -56,6 +85,15 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 test("Connection: MPU6050 self test")
 command(9)
 expect("@timestamp HIL_TEST_SIG Mpu6050 PASSED connection self test")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# =============================================================================
+test("Init: MPU6050 interrupt registers enabled as expected")
+command(1)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(12)
+interruptRegisterInt = bin8_to_int('00010010')
+expect(f"@timestamp HIL_TEST_SIG Interrupt Register: {interruptRegisterInt}")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
