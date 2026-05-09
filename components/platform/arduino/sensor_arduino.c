@@ -133,35 +133,65 @@ void setI2cDriver(I2cDrv* i2c_driver) {
     i2c = i2c_driver;
 }
 
+/**
+ * Orchestrate the initialization of mpu, interrupts and dmp.
+ *
+ * @see mpu6050DmpInitialize for more information on sequence.
+ * */
 SensorStatus mpu6050_init_adapter(SensorConfig config) {
     assert(i2c != NULL);
-
     mpu6050Init(i2c);
 
-    /* Setting Rate on MPU6050
-     * This function sets the "divider" not the actual sample rate.
-     *
-     * Sample rate is calculated using:
-     *  Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
-     * where Gyroscope Output Rate = 8kHz when the DLPF is disabled (DLPF_CFG = 0 or
-     * 7), and 1kHz when the DLPF is enabled (see Register 26).
-     *
-     * @see mpu6050GetRate()
-     */
-    mpu6050SetRate(mpu6050SampleRateDivider(config.sample_rate_hz));
-
+    mpu6050Reset();
+    delay(50);
     mpu6050SetSleepEnabled(false);
 
-    // Why Gryo? Gyro-based PLL is less noisy and more accurate than internal clock
-    // Why XGryo? just a convention
-    mpu6050SetClockSource(MPU6050_CLOCK_PLL_XGYRO);
+    if (config.enable_dmp) {
+        mpu6050DmpBootstrap();
 
-    // ---- Interrupt-driven sample ready mode --------------------
-    // The fixture stays non-polling: we let the MPU drive a GPIO interrupt
-    // whenever a new sample or DMP packet is ready, then check the latched
-    // interrupt status from the test command.
-    mpu6050SetFIFOEnabled(false);
-    mpu6050ResetFIFO();
+        mpu6050Configure();
+        if (!mpu6050DmpLoadFirmware()) {
+            return ERR_DMP_FIRMWARE;
+        }
+        mpu6050DmpConfigure();
+        mpu6050SetIntEnabled(
+            (1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT) |
+            (1 << MPU6050_INTERRUPT_DMP_INT_BIT)
+        );
+        mpu6050DmpEnable();
+
+        // // WARN: remove this
+        // assert(mpu6050GetIntDMPEnabled() == 1);
+    } else {
+        mpu6050SetIntDMPEnabled(false);
+        mpu6050SetDMPEnabled(false);
+    }
+
+    // /* Setting Rate on MPU6050
+    //  * This function sets the "divider" not the actual sample rate.
+    //  *
+    //  * Sample rate is calculated using:
+    //  *  Sample Rate = Gyroscope Output Rate / (1 + SMPLRT_DIV)
+    //  * where Gyroscope Output Rate = 8kHz when the DLPF is disabled (DLPF_CFG = 0 or
+    //  * 7), and 1kHz when the DLPF is enabled (see Register 26).
+    //  *
+    //  * @see mpu6050GetRate()
+    //  */
+    // mpu6050SetRate(mpu6050SampleRateDivider(config.sample_rate_hz));
+    //
+    // // Why Gryo? Gyro-based PLL is less noisy and more accurate than internal clock
+    // // Why XGryo? just a convention
+    // mpu6050SetClockSource(MPU6050_CLOCK_PLL_XGYRO);
+    //
+    // // 1khz sample rate
+    // mpu6050SetDLPFMode(1);
+    //
+    // // ---- Interrupt-driven sample ready mode --------------------
+    // // The fixture stays non-polling: we let the MPU drive a GPIO interrupt
+    // // whenever a new sample or DMP packet is ready, then check the latched
+    // // interrupt status from the test command.
+    // mpu6050SetFIFOEnabled(true);
+    // mpu6050ResetFIFO();
 
     // Arduino: setup interrupt
     pinMode(I2C_INTERRUPT_PIN, INPUT_PULLUP);
@@ -173,22 +203,8 @@ SensorStatus mpu6050_init_adapter(SensorConfig config) {
     mpu6050SetInterruptLatch(true); // CAUTION: requires mpu6050GetIntStatus() to clear
     mpu6050SetInterruptDrive(OPEN_DRAIN); // open-drain
 
-    mpu6050SetIntFIFOBufferOverflowEnabled(false);
+    // mpu6050SetIntFIFOBufferOverflowEnabled(false); // set by mpu6050Configure
     mpu6050SetIntDataReadyEnabled(true);
-
-    if (config.enable_dmp) {
-        mpu6050SetIntDMPEnabled(true);
-        mpu6050SetDMPEnabled(true);
-
-        // // WARN: remove this
-        // assert(mpu6050GetIntDMPEnabled() == 1);
-    } else {
-        mpu6050SetIntDMPEnabled(false);
-        mpu6050SetDMPEnabled(false);
-    }
-
-    // 1khz sample rate
-    mpu6050SetDLPFMode(1);
 
     // Clear any pending status after the GPIO interrupt is armed, so the first
     // real data-ready event produces a fresh falling edge.

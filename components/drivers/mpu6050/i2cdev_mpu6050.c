@@ -3739,6 +3739,7 @@ uint8_t mpu6050DmpInitialize(void)
 
     mpu6050SetSleepEnabled(false);
 
+    // ---- Bootstrap DMP ------------------------------------------
     mpu6050SetMemoryBank(0x10, true, true);
     mpu6050SetMemoryStartAddress(0x06);
     (void)mpu6050ReadMemoryByte();
@@ -3751,6 +3752,7 @@ uint8_t mpu6050DmpInitialize(void)
     mpu6050ResetI2CMaster();
     vTaskDelay(M2T(20));
 
+    // ---- Configure MPU ------------------------------------------
     mpu6050SetClockSource(MPU6050_CLOCK_PLL_ZGYRO);
     mpu6050SetIntEnabled((1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT) |
                          (1 << MPU6050_INTERRUPT_DMP_INT_BIT));
@@ -3759,6 +3761,7 @@ uint8_t mpu6050DmpInitialize(void)
     mpu6050SetDLPFMode(MPU6050_DLPF_BW_42);
     mpu6050SetFullScaleGyroRange(MPU6050_GYRO_FS_2000);
 
+    // ---- Upload Firmware to DMP ---------------------------------
     if (!mpu6050WriteProgMemoryBlock(dmpMemory, MPU6050_DMP_CODE_SIZE, 0, 0, true)) {
         return 1;
     }
@@ -3772,6 +3775,7 @@ uint8_t mpu6050DmpInitialize(void)
         return 1;
     }
 
+    // ---- Configure DMP ------------------------------------------
     mpu6050SetDMPConfig1(0x03);
     mpu6050SetDMPConfig2(0x00);
     mpu6050SetOTPBankValid(false);
@@ -3779,6 +3783,8 @@ uint8_t mpu6050DmpInitialize(void)
     mpu6050SetZeroMotionDetectionThreshold(156);
     mpu6050SetMotionDetectionDuration(80);
     mpu6050SetZeroMotionDetectionDuration(0);
+
+    // ---- Enable DMP ---------------------------------------------
     mpu6050SetFIFOEnabled(true);
     mpu6050ResetDMP();
     mpu6050SetDMPEnabled(false);
@@ -3790,6 +3796,89 @@ uint8_t mpu6050DmpInitialize(void)
 
     return 0;
 }
+
+// =============================================================================
+
+void mpu6050DmpBootstrap(void)
+{
+    mpu6050SetMemoryBank(0x10, true, true);
+    mpu6050SetMemoryStartAddress(0x06);
+    (void)mpu6050ReadMemoryByte();
+    mpu6050SetMemoryBank(0, false, false);
+    (void)mpu6050GetOTPBankValid();
+
+    mpu6050SetSlaveAddress(0, 0x7F);
+    mpu6050SetI2CMasterModeEnabled(false);
+    mpu6050SetSlaveAddress(0, MPU6050_DEFAULT_ADDRESS);
+    mpu6050ResetI2CMaster();
+
+    vTaskDelay(M2T(20));
+}
+
+void mpu6050Configure(void)
+{
+    mpu6050SetClockSource(MPU6050_CLOCK_PLL_ZGYRO);
+    mpu6050SetIntEnabled((1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT) |
+                         (1 << MPU6050_INTERRUPT_DMP_INT_BIT));
+    mpu6050SetRate(0); // 1 kHz / (1 + 0) = 1 kHz sample rate
+    // mpu6050SetRate(4); // 1 kHz / (1 + 4) = 200 Hz sample rate
+    mpu6050SetExternalFrameSync(MPU6050_EXT_SYNC_TEMP_OUT_L);
+    // DLPF mode
+    // 0 → 260 Hz gyro bandwidth, 8 kHz gyro sample (max)
+    // 3 → 42 Hz bandwidth, 1 kHz sample rate
+    mpu6050SetDLPFMode(MPU6050_DLPF_BW_42);
+    mpu6050SetFullScaleGyroRange(MPU6050_GYRO_FS_2000);
+}
+
+bool mpu6050DmpLoadFirmware(void)
+{
+    if (!mpu6050WriteProgMemoryBlock( dmpMemory, MPU6050_DMP_CODE_SIZE, 0, 0, false)) {
+        return false;
+    }
+
+#ifndef MPU6050_DMP_FIFO_RATE_DIVISOR
+#define MPU6050_DMP_FIFO_RATE_DIVISOR 0x01
+#endif
+
+    const uint8_t dmpUpdate[] = {
+        0x00,
+        MPU6050_DMP_FIFO_RATE_DIVISOR
+    };
+
+    if (!mpu6050WriteMemoryBlock( dmpUpdate, sizeof(dmpUpdate), 0x02, 0x16, false)) {
+        return false;
+    }
+
+    return true;
+}
+
+void mpu6050DmpConfigure(void)
+{
+    mpu6050SetDMPConfig1(0x03);
+    mpu6050SetDMPConfig2(0x00);
+    mpu6050SetOTPBankValid(false);
+
+    mpu6050SetMotionDetectionThreshold(2);
+    mpu6050SetZeroMotionDetectionThreshold(156);
+
+    mpu6050SetMotionDetectionDuration(80);
+    mpu6050SetZeroMotionDetectionDuration(0);
+
+    dmpPacketSize = 42;
+}
+
+void mpu6050DmpEnable(void)
+{
+    mpu6050SetFIFOEnabled(true);
+    mpu6050ResetFIFO();
+
+    mpu6050ResetDMP();
+    mpu6050SetDMPEnabled(true);
+
+    (void)mpu6050GetIntStatus();
+}
+
+// =============================================================================
 
 bool mpu6050WriteProgDMPConfigurationSet(const uint8_t *data, uint16_t dataSize)
 {

@@ -15,6 +15,8 @@ from enum import IntEnum
 import time
 import math
 
+MPU_SAMPLE_RATE = 1000
+
 class RecordType(IntEnum):
     # QS_USER0
     HIL_TEST_SIG     = 100
@@ -37,7 +39,7 @@ def on_reset():
     expect_run()
 
     # ALL signals
-    # CAUTION: be careful of running glb_filter again as it resets the previous one.
+    # CAUTION: of running glb_filter again as it resets the previous one.
     glb_filter(GRP_UA, -RecordType.COMMAND_TEST_SIG, -RecordType.MPU6050_TEST_SIG)
 
     # # fails????
@@ -51,63 +53,14 @@ expect("@timestamp HIL_TEST_SIG ADC_read 42")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
-test("Interrupt: no phantom event after clear")
-command(1)
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(5)
-start = time.time()
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(7)
-end = time.time()
-duration = end - start
-count = math.ceil(duration / (500/2))
-expect(f"@timestamp HIL_TEST_SIG STATE * {count}")
+test("Connection: MPU6050 self test")
+command(9)
+expect("@timestamp HIL_TEST_SIG Mpu6050 PASSED connection self test")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
-test("Interrupt: no phantom event after clear short")
-command(1)
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(5)
-start = time.time()
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(4, 2)
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(7)
-end = time.time()
-duration = end - start
-count = math.ceil(duration / (500/2))
-expect(f"@timestamp HIL_TEST_SIG STATE * {count}")
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-
-test("Interrupt: no phantom event after clear long")
-command(1)
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(5)
-start = time.time()
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(4, 500)
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(7)
-end = time.time()
-duration = end - start
-count = math.ceil(duration / (500/2))
-print(f"COUNT --------- {count} ---------- ")
-expect(f"@timestamp HIL_TEST_SIG STATE * {count}")
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-
-test("Interrupt: no phantom event after clear with counted loop")
-note(
-"""
-The mpu6050 was configured for 500hz.
-Test results:
-    with 500ms delay:
-        11702 interrupts, with 2884 data ready samples
-        = 0.043 ms and 0.173 ms
-    with 1000ms delay:
-        23658 interrupts, with 5757 data ready samples
-        = 0.042 ms and 0.174 ms
-"""
-)
+# =============================================================================
+test("Interrupt: No. of Data Ready Interrupts match expectations")
+note( "The mpu6050 was configured for `MPU_SAMPLE_RATE`hz.")
 command(1)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(5)
@@ -115,13 +68,41 @@ start = time.time()
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(8, 1000)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(7)
 end = time.time()
+command(7)
 duration = end - start
-count = round(duration * 500)
-print(f"COUNT --------- {count} ---------- ")
-print(f"DURATION --------- {duration} ---------- ")
-expect(f"@timestamp HIL_TEST_SIG STATE  {count}")
+count = math.floor(duration * MPU_SAMPLE_RATE)
+print(f"COUNT    : {count}")
+print(f"DURATION : {duration}")
+expect(f"@timestamp HIL_TEST_SIG STATE {count} *")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+test("Interrupt: No. of Data Ready Interrupts match expectations, short")
+command(1)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(5)
+start = time.time()
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(8, 5)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+end = time.time()
+command(7)
+duration = end - start
+count = math.floor(duration * MPU_SAMPLE_RATE)
+print(f"COUNT    : {count}")
+print(f"DURATION : {duration}")
+expect(f"@timestamp HIL_TEST_SIG STATE {count} *")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+test("Interrupt: No phantom Data Ready Interrupts occur")
+command(1)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(5)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(8, 0)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command(7)
+expect(f"@timestamp HIL_TEST_SIG STATE 0 *")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
@@ -140,23 +121,6 @@ command(5)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(4, 4)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(3)
-expect("@timestamp HIL_TEST_SIG Mpu6050 Sample Ready")
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-
-# =============================================================================
-test("Interrupt: MPU6050 sample-ready interrupt stays non-polling")
-note("""
-The fixture runs the MPU at 500Hz, so a new sample should be ready about every 2ms.
-The target code does not poll the FIFO or the interrupt line; the qutest command
-only checks the already-latched status after a short delay.
-""")
-command(1)
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(5)
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-# command(4, 0.001)
-# expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(3)
 expect("@timestamp HIL_TEST_SIG Mpu6050 Sample Ready")
 expect("@timestamp Trg-Done QS_RX_COMMAND")

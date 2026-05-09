@@ -17,6 +17,8 @@ extern "C" {
 #define ARDUINO_ESP
 // FIXME: define doesnt enable the ifdef!!! @see mpu6050.h
 #define MPU6050_INCLUDE_DMP_MOTIONAPPS20 // NOTE: required for enabling DMP!!!
+// FIXME: define enable doesnt work; perhaps due to arduino build structure.
+#define MPU6500
 #include "mpu6050.h"
 #include "sensor_arduino.h"
 #include "qpc.h"
@@ -126,7 +128,12 @@ void QS_onCommand(uint8_t cmdId,
                 // Spy_setMpuIsrSemaphore(&mpuIsrSem);
 
                 SensorStatus status = arduinoSensorInteface.Sensor_init(config);
-                if (status != SENSOR_OK) {
+                if (status == ERR_DMP_FIRMWARE) {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("MPU6050 DMP Firmware Upload Failed");
+                    QS_END();
+                }
+                else if (status != SENSOR_OK) {
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                         QS_STR("MPU6050 Init Failed");
                     QS_END();
@@ -220,6 +227,26 @@ void QS_onCommand(uint8_t cmdId,
 
                 break;
             }
+        case 9U:
+            {
+                setSensorBusDef(&arduinoSensorBusDef);
+                setI2cDriver(&sensorsBus); // not required
+                i2cdrvInit(&sensorsBus);
+                mpu6050Init(&sensorsBus); // not required
+                bool val = mpu6050TestConnection();
+                if (!val) {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("Mpu6050 FAILED connection self test");
+                        QS_U8(0, mpu6050GetDeviceID());
+                    QS_END();
+                }
+                else {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("Mpu6050 PASSED connection self test");
+                    QS_END();
+                }
+                break;
+            }
 
         // reset mpu6050 hardware state
         case 6U:
@@ -247,8 +274,8 @@ void QS_onCommand(uint8_t cmdId,
 
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR("STATE");
-                    QS_U32(0, isrCount);
                     QS_U32(0, sampleReadyCount);
+                    QS_U32(0, isrCount);
                     QS_U8(0, lastSampleReadyState);
                 QS_END();
 

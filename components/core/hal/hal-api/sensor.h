@@ -37,6 +37,7 @@ typedef struct {
 typedef enum {
     SENSOR_OK,
     ERR_I2C,
+    ERR_DMP_FIRMWARE,
     // TODO: ERR_TIMEOUT,
 } SensorStatus;
 

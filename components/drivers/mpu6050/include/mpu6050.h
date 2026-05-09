@@ -832,6 +832,16 @@ typedef struct {
 // Ported from i2cdev: MPU6050_6Axis_MotionApps20.cpp/.h
 
 uint8_t mpu6050DmpInitialize(void);
+
+// ---- Custom API ---------------------------------------------
+// These functions act more as "orchestrators", managing sequences.
+void mpu6050DmpBootstrap(void);
+void mpu6050Configure(void); // TODO; pass config
+void mpu6050DmpConfigure(void);
+void mpu6050DmpEnable(void);
+bool mpu6050DmpLoadFirmware(void);
+// -------------------------------------------------------------
+
 bool mpu6050DmpPacketAvailable(void);
 uint16_t mpu6050DmpGetFIFOPacketSize(void);
 uint8_t mpu6050DmpGetCurrentFIFOPacket(uint8_t *data);
