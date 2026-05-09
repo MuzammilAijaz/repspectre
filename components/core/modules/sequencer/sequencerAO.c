@@ -1,94 +1,58 @@
-// cpputest-for-qpc
-#include "cmsTestPublishedEventRecorder.hpp"
-#include "cms_cpputest_qf_ctrl.hpp"
-#include "cmsQAssertMockSupport.hpp"
-
-// cpputest
-#include "CppUTest/TestHarness.h"
-
 #include "sequencerAO.h"
+
+#include "qp.h"
+#include "qpc.h"
+#include "qsafe.h"
+
 #include "pub_sub_signals.h"
 
-// Test group
-TEST_GROUP(SequencerAOGroup)
-{
-    QActive* mUnderTest = nullptr; // Active Object under test
+Q_DEFINE_THIS_MODULE("SequencerAO")
 
-    // Storage for the event queue of the AO, holding 10 events max
-    std::array<const QEvt*, 10> underTestEventQueueStorage;
+typedef struct {
+    QActive super;
 
-    // Records the events
-    cms::test::PublishedEventRecorder* mRecorder = nullptr;
+} SequencerAO;
 
-    void setup() final
-    {
-        using namespace cms::test;
+static QState SequencerAO_initial(SequencerAO *me, void const * par);
+static QState SequencerAO_uninitialized(SequencerAO * me, const QEvt* e);
 
-        // Setup fake QP runtime with maximum signals and tick rate
-        qf_ctrl::Setup(200, 200);
+static SequencerAO m_instance; // private member variable
 
-        // Create Event Recorder ; a cpputest-for-qpc mechanism for recording events
-        mRecorder = PublishedEventRecorder::CreatePublishedEventRecorder(
-            qf_ctrl::RECORDER_PRIORITY, // priority of the fake qp runtime
-            Q_USER_SIG,
-            MAX_PUB_SUB_SIG
-        );
+QActive * g_sequencerAO = NULL; // NOTE: only access this AFTER SequencerAO_ctor() called
 
-        SequencerAO_ctor();
-        mUnderTest = g_sequencerAO; // this will be out AO under test
-        CHECK_TRUE(mUnderTest != nullptr);
-
-        // Clear event queue buffer with nullptr
-        underTestEventQueueStorage.fill(nullptr);
-    }
-
-    void teardown() final
-    {
-        SequencerAO_dtor();
-        mUnderTest = nullptr; // this will be out AO under test
-
-        // clears cpputest mock subsystem
-        mock().clear();
-
-        // destory cpputest-for-qpc
-        cms::test::qf_ctrl::Teardown();
-
-        delete mRecorder;
-    }
-
-    void startAOUnderTest()
-    {
-        using namespace cms::test;
-
-        QACTIVE_START(
-            mUnderTest,
-            qf_ctrl::UNIT_UNDER_TEST_PRIORITY,
-            underTestEventQueueStorage.data(),
-            underTestEventQueueStorage.size(),
-            nullptr,
-            0,
-            nullptr
-        );
-
-        qf_ctrl::ProcessEvents();
-    }
-};
-
-TEST(SequencerAOGroup, GivenUninitialized_whenInitialized_thenChangeToUninitializedState)
-{
-    startAOUnderTest();
+void SequencerAO_ctor(void) {
+    QActive_ctor(&m_instance.super, Q_STATE_CAST(SequencerAO_initial));
+    g_sequencerAO = &m_instance.super;
 }
 
-// =============================================================================
-// | Initialization
-// =============================================================================
+void SequencerAO_dtor(void) {
+    g_sequencerAO = NULL;
+}
 
+QState SequencerAO_initial(SequencerAO * const me, void const * const par) {
+    Q_UNUSED_PAR(par);
+    Q_UNUSED_PAR(me);
 
-// =============================================================================
-// | Domain Logic
-// =============================================================================
+    return Q_TRAN(&SequencerAO_uninitialized);
+}
 
+QState SequencerAO_uninitialized(SequencerAO * me, const QEvt* e) {
+    Q_UNUSED_PAR(me);
 
-// =============================================================================
-// | Error Handling
-// =============================================================================
+    QState rtn;
+
+    switch (e->sig) {
+
+        case Q_ENTRY_SIG: {
+            rtn = Q_HANDLED();
+            break;
+        }
+
+        default: {
+            rtn = Q_SUPER(&QHsm_top);
+            break;
+        }
+    }
+
+    return rtn;
+}

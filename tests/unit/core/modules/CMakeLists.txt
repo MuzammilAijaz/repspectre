@@ -4,3 +4,4 @@ set(COMMON_TEST_LIBRARIES
 	cpputest-for-qpc-lib
 )
 add_subdirectory(sensor)
+add_subdirectory(sequencer)

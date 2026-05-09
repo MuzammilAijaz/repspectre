@@ -9,4 +9,5 @@ target_include_directories(qp-headers INTERFACE
 )
 
 add_subdirectory(sensor)
+add_subdirectory(sequencer)
 add_subdirectory(module-api)
