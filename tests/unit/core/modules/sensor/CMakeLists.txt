@@ -18,7 +18,10 @@ target_include_directories(sensorAO_test
 target_link_libraries(sensorAO_test
     PRIVATE
     sensorAO
+
+    unit-test-utils
     ${COMMON_TEST_LIBRARIES}
+
 	fake-sensor
 )
 

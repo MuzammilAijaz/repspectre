@@ -32,6 +32,8 @@
 #include "pub_sub_signals.h"
 #include "Fake_Sensor.h"
 
+#include "unit_test_utils.hpp"
+
 // Test group
 TEST_GROUP(SensorAOGroup) {
 
@@ -55,6 +57,8 @@ TEST_GROUP(SensorAOGroup) {
             Q_USER_SIG,
             MAX_PUB_SUB_SIG
         );
+
+        setRecorder(mRecorder);
 
         SensorAO_ctor(&Fake_Sensor_interface);
         mUnderTest = g_sensorAO; // this will be out AO under test
@@ -116,13 +120,6 @@ TEST_GROUP(SensorAOGroup) {
         mRecorder->getRecordedEvent(); // consume the MPU_INITIALIZED_SIG event
     }
 
-    /* Returns recorded event for further checking of event signal */
-    cms::QEvtUniquePtr checkRecordedEventSignal(PubSubSignal signal) {
-        auto event = mRecorder->getRecordedEvent();
-        CHECK_TRUE(event != nullptr); // make sure event is called from AO
-        CHECK_EQUAL(signal, event->sig);
-        return event;
-    }
 };
 
 static const SensorConfig validConfig = {
