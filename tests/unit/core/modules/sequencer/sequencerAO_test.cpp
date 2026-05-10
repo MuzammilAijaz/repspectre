@@ -8,6 +8,9 @@
 
 #include "sequencerAO.h"
 #include "Fake_BSP.h"
+#include "sensorAO.h"
+#include "Fake_SensorAO.h"
+#include "Fake_Sensor.h"
 
 #include "pub_sub_signals.h"
 #include <CppUTest/UtestMacros.h>
@@ -17,9 +20,13 @@
 TEST_GROUP(SequencerAOGroup)
 {
     QActive* mUnderTest = nullptr; // Active Object under test
+    QActive* Fake_sensorAO = nullptr;
 
-    // Storage for the event queue of the AO, holding 10 events max
+    // Storage for the event queue of the sequencerAO, holding 10 events max
     std::array<const QEvt*, 10> underTestEventQueueStorage;
+
+    // Storage for the event queue of the Fake_sensorAO, holding 10 events max
+    std::array<const QEvt*, 10> Fake_sensorAOEventQueueStorage;
 
     // Records the events
     cms::test::PublishedEventRecorder* mRecorder = nullptr;
@@ -40,6 +47,8 @@ TEST_GROUP(SequencerAOGroup)
 
         setRecorder(mRecorder);
 
+        SensorAO_ctor(&Fake_Sensor_interface);
+        Fake_sensorAO = g_sensorAO;
         SequencerAO_ctor(&FakeBSPinterface);
         Fake_BSP_ctor();
         mUnderTest = g_sequencerAO; // this will be out AO under test
@@ -53,6 +62,7 @@ TEST_GROUP(SequencerAOGroup)
     {
         Fake_BSP_dtor();
         SequencerAO_dtor();
+        SensorAO_dtor();
         mUnderTest = nullptr; // this will be out AO under test
 
         // clears cpputest mock subsystem
@@ -81,9 +91,30 @@ TEST_GROUP(SequencerAOGroup)
         qf_ctrl::ProcessEvents();
     }
 
+    void startSensorAO()
+    {
+        using namespace cms::test;
+
+        QACTIVE_START(
+            Fake_sensorAO,
+            qf_ctrl::DUMMY_AO_A_PRIORITY,
+            Fake_sensorAOEventQueueStorage.data(),
+            Fake_sensorAOEventQueueStorage.size(),
+            nullptr,
+            0,
+            nullptr
+        );
+        qf_ctrl::ProcessEvents();
+
+        auto event = mRecorder->getRecordedEvent();
+        CHECK_TRUE(event != nullptr); // make sure event is called from AO
+        CHECK_EQUAL(MPU_UNINITIALIZED_SIG, event->sig);
+    }
+
     void startAOAndMoveToBootingState(void) {
         using namespace cms::test;
 
+        startSensorAO();
         startAOUnderTest();
 
         auto* e = Q_NEW(QEvt, START_BOOT_SIG);
@@ -112,10 +143,36 @@ TEST(SequencerAOGroup, AOSmokeTest)
 // Start/Configure Bluetooth service
 // Start/Configure Inference engine?
 // Start/Configure MCU ; nvic, interrupts, clocks, etc.
+TEST(SequencerAOGroup, GivenBooting_WhenBspInitialised_ThenRequestSensorInitialization)
+{
+    using namespace cms::test;
+
+    // Dummy AO that will receive direct QACTIVE_POST events
+    auto dummy = std::unique_ptr<DefaultDummyActiveObject>(
+      new DefaultDummyActiveObject(
+        DefaultDummyActiveObject::EventBehavior::RECORDER));
+    // must be started before it can receive posts
+    dummy->dummyStart(qf_ctrl::UNIT_UNDER_TEST_PRIORITY - 1);
+    // IMPORTANT: redirect global pointer BEFORE stimulus
+    g_sensorAO = dummy->getQActive();
+
+    startAOAndMoveToBootingState(); // start boot
+
+    qf_ctrl::ProcessEvents();
+
+    // retrieve what was posted to the dummy AO
+    auto recordedEvent = dummy->getRecordedEvent();
+
+    CHECK_TRUE(recordedEvent != nullptr);
+    CHECK_EQUAL(INITIALIZE_MPU_SIG, recordedEvent->sig);
+}
 
 // TODO: handle error from bluetooth
 
+// TODO: handle all succesfful initialization and transition.
+
 // ==== STATE: Enabled =========================================================
+
 
 // TODO: handle "CONIFGURED" from sensor and trasition accordingly
 // TODO: handle "CONFIGURED" from bluetooth and transition accordingly
@@ -134,3 +191,5 @@ TEST(SequencerAOGroup, GivenBooting_WhenBspInitFails_ThenMoveToErrorStateAndSend
 
     checkRecordedEventSignal(ERROR_BSP_INIT);
 }
+
+// TODO: Bluetooth init fails

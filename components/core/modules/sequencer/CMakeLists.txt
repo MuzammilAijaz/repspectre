@@ -22,6 +22,7 @@ target_link_libraries(sequencerAO
     adc
 
     platform-bsp-api
+    sensorAO
 )
 
 # Optional: alias (future-proof naming)

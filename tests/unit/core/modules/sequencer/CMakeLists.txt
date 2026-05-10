@@ -23,6 +23,8 @@ target_link_libraries(sequencerAO_test
 	unit-test-utils
 
 	fake-bsp
+	fake-sensorAO
+	fake-sensor
 )
 
 # add_test(NAME sequencerAO_test COMMAND sequencerAO_test)

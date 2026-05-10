@@ -7,6 +7,8 @@
 #include "pub_sub_signals.h"
 #include "BSP.h"
 
+#include "sensorAO.h"
+
 Q_DEFINE_THIS_MODULE("SequencerAO")
 
 typedef enum {
@@ -55,7 +57,6 @@ QState SequencerAO_initial(SequencerAO * const me, void const * const par) {
 }
 
 QState SequencerAO_booting(SequencerAO * me, const QEvt* e) {
-    static const QEvt bspSuccessEvt = QEVT_INITIALIZER(BSP_INITIALIZED_SIG);
 
     QState rtn;
 
@@ -75,9 +76,21 @@ QState SequencerAO_booting(SequencerAO * me, const QEvt* e) {
                 rtn = Q_TRAN(&SequencerAO_error);
             }
             else {
-                QF_PUBLISH(&bspSuccessEvt, &me->super);
+                SensorAOInitializeMpuRequestEvent * const evt =
+                    Q_NEW(SensorAOInitializeMpuRequestEvent, INITIALIZE_MPU_SIG);
+                evt->config = (SensorConfig) {
+                    .sample_rate_hz = 200,
+                    .enable_dmp = true,
+                    .calibrate_on_init = true,
+                    .calib_loops = 6,
+                    .fifo_size = 1000,
+                };
+                QACTIVE_POST(g_sensorAO, &evt->super, me);
                 rtn = Q_HANDLED();
             }
+
+            // QUESTION: should this block also responsible for initializting everything??
+            // like SensorAO (thereby also the mpu6050 sensor), BluetoothAO etc..?
             break;
         }
 
