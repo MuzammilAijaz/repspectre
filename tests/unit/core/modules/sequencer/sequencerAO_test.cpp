@@ -7,7 +7,11 @@
 #include "CppUTest/TestHarness.h"
 
 #include "sequencerAO.h"
+#include "Fake_BSP.h"
+
 #include "pub_sub_signals.h"
+#include <CppUTest/UtestMacros.h>
+#include "unit_test_utils.hpp"
 
 // Test group
 TEST_GROUP(SequencerAOGroup)
@@ -34,7 +38,10 @@ TEST_GROUP(SequencerAOGroup)
             MAX_PUB_SUB_SIG
         );
 
-        SequencerAO_ctor();
+        setRecorder(mRecorder);
+
+        SequencerAO_ctor(&FakeBSPinterface);
+        Fake_BSP_ctor();
         mUnderTest = g_sequencerAO; // this will be out AO under test
         CHECK_TRUE(mUnderTest != nullptr);
 
@@ -44,6 +51,7 @@ TEST_GROUP(SequencerAOGroup)
 
     void teardown() final
     {
+        Fake_BSP_dtor();
         SequencerAO_dtor();
         mUnderTest = nullptr; // this will be out AO under test
 
@@ -72,6 +80,16 @@ TEST_GROUP(SequencerAOGroup)
 
         qf_ctrl::ProcessEvents();
     }
+
+    void startAOAndMoveToBootingState(void) {
+        using namespace cms::test;
+
+        startAOUnderTest();
+
+        auto* e = Q_NEW(QEvt, START_BOOT_SIG);
+        qf_ctrl::PublishAndProcess(e, mRecorder);
+    }
+
 };
 
 TEST(SequencerAOGroup, AOSmokeTest)
@@ -88,7 +106,31 @@ TEST(SequencerAOGroup, AOSmokeTest)
 // | Domain Logic
 // =============================================================================
 
+// ==== STATE: Booting =========================================================
+
+// Enable/Configure sensor
+// Start/Configure Bluetooth service
+// Start/Configure Inference engine?
+// Start/Configure MCU ; nvic, interrupts, clocks, etc.
+
+// TODO: handle error from bluetooth
+
+// ==== STATE: Enabled =========================================================
+
+// TODO: handle "CONIFGURED" from sensor and trasition accordingly
+// TODO: handle "CONFIGURED" from bluetooth and transition accordingly
 
 // =============================================================================
 // | Error Handling
 // =============================================================================
+
+// BSP init fails
+TEST(SequencerAOGroup, GivenBooting_WhenBspInitFails_ThenMoveToErrorStateAndSendSignal)
+{
+    using namespace cms::test;
+    Fake_BSP_InjectError(); // inject before because next step will move it booting state
+
+    startAOAndMoveToBootingState();
+
+    checkRecordedEventSignal(ERROR_BSP_INIT);
+}

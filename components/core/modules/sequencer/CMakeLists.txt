@@ -20,6 +20,8 @@ target_link_libraries(sequencerAO
     module-api # for event signals; since its INTERFACE lib, directories included automaticaly
     hal-api
     adc
+
+    platform-bsp-api
 )
 
 # Optional: alias (future-proof naming)

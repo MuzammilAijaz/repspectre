@@ -20,6 +20,9 @@ typedef enum PubSubSignal {
 
     STARTING_PUB_SUB_SIG = Q_USER_SIG, // qpc: Q_USER_SIG represents the index at after which qpc internal signals stop
 
+    // ---- Sequencer ----------------------------------------------
+    START_BOOT_SIG,
+
     // ---- Sensor -------------------------------------------------
 
     // Request/Command signals
@@ -35,6 +38,8 @@ typedef enum PubSubSignal {
 
     /** WHEN: No ACK from device, SDA stuck low */
     ERROR_SENSOR_I2C_MASTER,
+
+    ERROR_BSP_INIT,
 
     /** TODO:
      * WHEN: Device did not complete operation in time

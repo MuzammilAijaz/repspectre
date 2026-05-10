@@ -18,7 +18,11 @@ target_include_directories(sequencerAO_test
 target_link_libraries(sequencerAO_test
     PRIVATE
     sequencerAO
+
     ${COMMON_TEST_LIBRARIES}
+	unit-test-utils
+
+	fake-bsp
 )
 
 # add_test(NAME sequencerAO_test COMMAND sequencerAO_test)

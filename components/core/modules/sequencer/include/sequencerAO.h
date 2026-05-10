@@ -8,6 +8,7 @@ extern "C" {
 #include <stdio.h>
 
 #include "qpc.h"
+#include "BSP.h"
 
 /**
  * Opaque pointer to the active object
@@ -21,7 +22,7 @@ extern QActive * g_sequencerAO;
 /**
  * Construct the Active Object
  */
-void SequencerAO_ctor();
+void SequencerAO_ctor(const BspInterface * const bsp);
 
 /**
  * Destroy the Active Object

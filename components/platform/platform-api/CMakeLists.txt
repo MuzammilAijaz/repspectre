@@ -9,3 +9,5 @@ target_link_libraries(platform-api
     INTERFACE
     i2c
 )
+
+add_subdirectory(bsp)
