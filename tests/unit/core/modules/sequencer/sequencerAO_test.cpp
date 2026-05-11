@@ -56,6 +56,8 @@ TEST_GROUP(SequencerAOGroup)
 
     void teardown() final
     {
+        flushDummyAOs();
+
         Fake_BSP_dtor();
         SequencerAO_dtor();
         mUnderTest = nullptr; // this will be out AO under test
@@ -67,6 +69,22 @@ TEST_GROUP(SequencerAOGroup)
         cms::test::qf_ctrl::Teardown();
 
         delete mRecorder;
+    }
+
+    /**
+     * @brief Drains all recorded events from Dummy Active Objects to prevent memory leaks.
+     *
+     * Since the SequencerAO posts multiple events from the global pool (Q_NEW),
+     * any event not explicitly retrieved via getRecordedEvent() remains allocated
+     * in the dummy's internal recorder. This function flushes those queues to
+     * ensure all pool memory is returned to the framework before test teardown.
+     */
+    void flushDummyAOs() {
+        if (dummy_sensorAO) {
+            while (dummy_sensorAO->isAnyEventRecorded()) {
+                (void)dummy_sensorAO->getRecordedEvent(); // Pull and destroy
+            }
+        }
     }
 
     void startAOUnderTest()
