@@ -1,9 +1,9 @@
 #include "unit_test_utils.hpp"
 
 // cpputest-for-qpc
+#include "cmsDummyActiveObject.hpp"
 #include "cmsTestPublishedEventRecorder.hpp"
 #include "cms_cpputest_qf_ctrl.hpp"
-#include "cmsQAssertMockSupport.hpp"
 
 #include "cassert"
 // cpputest

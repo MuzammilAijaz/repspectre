@@ -8,6 +8,7 @@
 #include "BSP.h"
 
 #include "sensorAO.h"
+#include "bluetoothAO.h"
 
 Q_DEFINE_THIS_MODULE("SequencerAO")
 
@@ -20,6 +21,7 @@ typedef struct {
 
     BspInterface* bsp; // NOTE: pointer; for clear ownership
     BspError_t bspStatus;
+    const char* bluetoothDeviceName;
 } SequencerAO;
 
 static QState SequencerAO_initial(SequencerAO *me, void const * par);
@@ -39,6 +41,7 @@ void SequencerAO_ctor(const BspInterface * const bsp) {
 
     QActive_ctor(&m_instance.super, Q_STATE_CAST(SequencerAO_initial));
     m_instance.bsp = bsp;
+    m_instance.bluetoothDeviceName = "dev";
 
     g_sequencerAO = &m_instance.super;
 }
@@ -76,16 +79,30 @@ QState SequencerAO_booting(SequencerAO * me, const QEvt* e) {
                 rtn = Q_TRAN(&SequencerAO_error);
             }
             else {
-                SensorAOInitializeMpuRequestEvent * const evt =
+                // Start Sensor
+                SensorAOInitializeMpuRequestEvent * const sensorEvt =
                     Q_NEW(SensorAOInitializeMpuRequestEvent, INITIALIZE_MPU_SIG);
-                evt->config = (SensorConfig) {
+                // TODO: move config out.
+                sensorEvt->config = (SensorConfig) {
                     .sample_rate_hz = 200,
                     .enable_dmp = true,
                     .calibrate_on_init = true,
                     .calib_loops = 6,
                     .fifo_size = 1000,
                 };
-                QACTIVE_POST(g_sensorAO, &evt->super, me);
+                QACTIVE_POST(g_sensorAO, &sensorEvt->super, me);
+
+                // Start Bluetooth
+                BluetoothAOInitializeRequestEvent * const bluetoothEvt =
+                    Q_NEW(BluetoothAOInitializeRequestEvent, INITIALIZE_BLUETOOTH_SIG);
+
+                // TODO: move config out.
+                bluetoothEvt->config = (BluetoothConfig) {
+                    .device_name = me->bluetoothDeviceName,
+                };
+
+                QACTIVE_POST(g_bluetoothAO, &bluetoothEvt->super, me);
+
                 rtn = Q_HANDLED();
             }
 

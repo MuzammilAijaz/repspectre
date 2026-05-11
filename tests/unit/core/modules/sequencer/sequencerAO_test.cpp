@@ -8,7 +8,8 @@
 
 #include "sequencerAO.h"
 #include "Fake_BSP.h"
-#include "sensorAO.h"
+#include "sensorAO.h" // for g_sensorAO
+#include "bluetoothAO.h" // for g_bluetoothAO
 
 #include "pub_sub_signals.h"
 #include <CppUTest/UtestMacros.h>
@@ -20,6 +21,7 @@ TEST_GROUP(SequencerAOGroup)
     QActive* mUnderTest = nullptr; // Active Object under test
 
     std::unique_ptr<cms::test::DefaultDummyActiveObject> dummy_sensorAO = nullptr;
+    std::unique_ptr<cms::test::DefaultDummyActiveObject> dummy_bluetoothAO = nullptr;
 
     // Storage for the event queue of the sequencerAO, holding 10 events max
     std::array<const QEvt*, 10> underTestEventQueueStorage;
@@ -44,11 +46,14 @@ TEST_GROUP(SequencerAOGroup)
         setRecorder(mRecorder);
 
         dummy_sensorAO = setupDummyObject(&g_sensorAO, qf_ctrl::DUMMY_AO_A_PRIORITY);
+        dummy_bluetoothAO = setupDummyObject(&g_bluetoothAO, qf_ctrl::DUMMY_AO_B_PRIORITY);
 
         SequencerAO_ctor(&FakeBSPinterface);
         Fake_BSP_ctor();
         mUnderTest = g_sequencerAO; // this will be out AO under test
         CHECK_TRUE(mUnderTest != nullptr);
+        CHECK_TRUE(dummy_sensorAO != nullptr);
+        CHECK_TRUE(dummy_bluetoothAO != nullptr);
 
         // Clear event queue buffer with nullptr
         underTestEventQueueStorage.fill(nullptr);
@@ -61,6 +66,8 @@ TEST_GROUP(SequencerAOGroup)
         Fake_BSP_dtor();
         SequencerAO_dtor();
         mUnderTest = nullptr; // this will be out AO under test
+        dummy_bluetoothAO = nullptr;
+        dummy_sensorAO = nullptr;
 
         // clears cpputest mock subsystem
         mock().clear();
@@ -83,6 +90,12 @@ TEST_GROUP(SequencerAOGroup)
         if (dummy_sensorAO) {
             while (dummy_sensorAO->isAnyEventRecorded()) {
                 (void)dummy_sensorAO->getRecordedEvent(); // Pull and destroy
+            }
+        }
+
+        if (dummy_bluetoothAO) {
+            while (dummy_bluetoothAO->isAnyEventRecorded()) {
+                (void)dummy_bluetoothAO->getRecordedEvent(); // Pull and destroy
             }
         }
     }
@@ -150,7 +163,18 @@ TEST(SequencerAOGroup, GivenBooting_WhenBspInitialised_ThenRequestSensorInitiali
     CHECK_EQUAL(INITIALIZE_MPU_SIG, recordedEvent->sig);
 }
 
-// TODO: handle error from bluetooth
+TEST(SequencerAOGroup, GivenBooting_WhenBspInitialised_ThenRequestBluetoothInitialization)
+{
+    using namespace cms::test;
+
+    startAOAndMoveToBootingState();
+    qf_ctrl::ProcessEvents();
+
+    auto recordedEvent = dummy_bluetoothAO->getRecordedEvent();
+
+    CHECK_TRUE(recordedEvent != nullptr);
+    CHECK_EQUAL(INITIALIZE_BLUETOOTH_SIG, recordedEvent->sig);
+}
 
 // TODO: handle all succesfful initialization and transition.
 
