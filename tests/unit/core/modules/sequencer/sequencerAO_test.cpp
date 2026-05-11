@@ -43,7 +43,7 @@ TEST_GROUP(SequencerAOGroup)
 
         setRecorder(mRecorder);
 
-        dummy_sensorAO = setupDummyObject(&g_sensorAO);
+        dummy_sensorAO = setupDummyObject(&g_sensorAO, qf_ctrl::DUMMY_AO_A_PRIORITY);
 
         SequencerAO_ctor(&FakeBSPinterface);
         Fake_BSP_ctor();

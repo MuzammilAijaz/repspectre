@@ -22,4 +22,4 @@ void setRecorder(cms::test::PublishedEventRecorder * recorder);
  * CHECK_EQUAL(INITIALIZE_MPU_SIG, recordedEvent->sig);
  * @endcode
  */
-std::unique_ptr<cms::test::DefaultDummyActiveObject> setupDummyObject(QActive** g_aoPointer);
+std::unique_ptr<cms::test::DefaultDummyActiveObject> setupDummyObject(QActive** g_aoPointer, uint8_t priority);
