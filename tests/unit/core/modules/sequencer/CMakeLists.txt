@@ -23,7 +23,6 @@ target_link_libraries(sequencerAO_test
 	unit-test-utils
 
 	fake-bsp
-	fake-sensorAO
 	fake-sensor
 )
 
