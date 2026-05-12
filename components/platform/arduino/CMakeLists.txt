@@ -21,4 +21,5 @@ target_link_libraries(platform-arduino
     i2c
     platform-api
     hal-api
+    i2cdev-mpu6050
 )
