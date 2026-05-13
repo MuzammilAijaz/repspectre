@@ -191,6 +191,20 @@ endfunction()
 #   - launches QSPY + executes QUTest scripts
 #
 function(add_hil_test TEST_NAME SKETCH_SUBDIR LINK_LIBS)
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs
+        EXTRA_SRCS
+        EXTRA_INCLUDES
+        TEST_SCRIPTS
+    )
+    cmake_parse_arguments(HIL
+        "${options}"
+        "${oneValueArgs}"
+        "${multiValueArgs}"
+        ${ARGN}
+    )
+
     # 1. Setup a local library for dependency collection
     set(TEMP_LIB "hil-lib-${TEST_NAME}")
     add_library(${TEMP_LIB} INTERFACE)
@@ -201,8 +215,27 @@ function(add_hil_test TEST_NAME SKETCH_SUBDIR LINK_LIBS)
     set_property(GLOBAL PROPERTY REPSPECTRE_VISITED_TARGETS "")
     repspectre_collect_arduino_deps_recursive(${TEMP_LIB} RAW_INCLUDES RAW_LIBS)
 
+    # Non cmake build includes/sources
+    if(HIL_EXTRA_SRCS)
+        list(APPEND RAW_LIBS ${HIL_EXTRA_SRCS})
+    endif()
+
+    if(HIL_EXTRA_INCLUDES)
+        list(APPEND RAW_INCLUDES ${HIL_EXTRA_INCLUDES})
+    endif()
+    #
+    # if(HIL_EXTRA_FLAGS)
+    #     set(ARDUINO_EXTRA_FLAGS "${HIL_EXTRA_FLAGS}")
+    # else()
+    #     set(ARDUINO_EXTRA_FLAGS "")
+    # endif()
+
+    list(REMOVE_DUPLICATES RAW_LIBS)
+    list(REMOVE_DUPLICATES RAW_INCLUDES)
+
     to_json_array("${RAW_INCLUDES}" ARDUINO_EXTRA_INCLUDES)
     to_json_array("${RAW_LIBS}" ARDUINO_EXTRA_LIBS)
+    # to_json_array("${HIL_EXTRA_FLAGS}" ARDUINO_EXTRA_FLAGS_JSON)
 
     # 3. Create unique config and work dirs
     set(TEST_WORK_DIR "${CMAKE_BINARY_DIR}/hil_work_${TEST_NAME}")
@@ -231,7 +264,8 @@ function(add_hil_test TEST_NAME SKETCH_SUBDIR LINK_LIBS)
             --qpc ${QPC_DIR}
             --sketch ${TESTS_DIR}/hil/arduino/${SKETCH_SUBDIR}
             --work-dir ${TEST_WORK_DIR}
-            ${ARGN} # Pass remaining python scripts
+            # ${ARGN} # Pass remaining python scripts
+            ${HIL_TEST_SCRIPTS}
     )
 
     set_tests_properties(hil_${TEST_NAME} PROPERTIES
@@ -282,10 +316,14 @@ target_compile_definitions(qp-arduino-port INTERFACE
 # disabled for now
 # add_hil_test(sensor_test "sensor_test"
 #     "platform-arduino;platform-api;i2c;i2cdev-mpu6050"
-#     "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"
+#
+#     TEST_SCRIPTS
+#         "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"
 # )
 
 add_hil_test(sequencer_test "sequencer_test"
     "qp-arduino-port;sensorAO;platform-arduino;qp-headers;sequencerAO"
-    "${TESTS_DIR}/hil/arduino/sequencer_test/sequencer_test.py"
+
+    TEST_SCRIPTS
+        "${TESTS_DIR}/hil/arduino/sequencer_test/sequencer_test.py"
 )
