@@ -73,6 +73,8 @@ QState SequencerAO_booting(SequencerAO * me, const QEvt* e) {
 
         case START_BOOT_SIG: {
             int success = me->bsp->BSP_init();
+            // TODO: handle error
+            me->bsp->BSP_configureI2cBus();
 
             if (!success) {
                 me->bspStatus = BSP_INIT_ERROR;

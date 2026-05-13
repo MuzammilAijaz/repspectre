@@ -9,6 +9,7 @@ void BSP_init(void);
 
 typedef struct {
     int (*BSP_init)(void);
+    void (*BSP_configureI2cBus)(void);
 } BspInterface;
 
 #ifdef __cplusplus

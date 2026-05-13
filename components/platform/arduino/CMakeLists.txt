@@ -4,6 +4,7 @@ target_sources(platform-arduino INTERFACE
     i2c_arduino.cpp
     i2cdev_arduino.c
     sensor_arduino.c
+    BSP_arduino.cpp
 )
 
 target_include_directories(platform-arduino
@@ -20,6 +21,7 @@ target_link_libraries(platform-arduino
 
     i2c
     platform-api
+    platform-bsp-api
     hal-api
     i2cdev-mpu6050
 )
