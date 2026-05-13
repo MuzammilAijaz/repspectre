@@ -32,6 +32,7 @@
 # TODO:
 # -----
 # - Avoid copying/recompiling of libraries headers like qpc to shorten times
+# - Add ability to turn on / off certain tests
 #
 # CHECK:
 # -------
@@ -180,59 +181,111 @@ function(repspectre_collect_arduino_deps_recursive target out_includes out_libs)
     set(${out_libs} ${collected_libs} PARENT_SCOPE)
 endfunction()
 
+#
+# Register an Arduino Hardware-In-The-Loop (HIL) QUTest.
+#
+# This helper:
+#   - collects Arduino library/include dependencies
+#   - generates a per-test Arduino config + work directory
+#   - builds/uploads the sketch
+#   - launches QSPY + executes QUTest scripts
+#
+function(add_hil_test TEST_NAME SKETCH_SUBDIR LINK_LIBS)
+    # 1. Setup a local library for dependency collection
+    set(TEMP_LIB "hil-lib-${TEST_NAME}")
+    add_library(${TEMP_LIB} INTERFACE)
+    target_link_libraries(${TEMP_LIB} INTERFACE ${LINK_LIBS})
+    target_include_directories(${TEMP_LIB} INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    # 2. Collect dependencies
+    set_property(GLOBAL PROPERTY REPSPECTRE_VISITED_TARGETS "")
+    repspectre_collect_arduino_deps_recursive(${TEMP_LIB} RAW_INCLUDES RAW_LIBS)
+
+    to_json_array("${RAW_INCLUDES}" ARDUINO_EXTRA_INCLUDES)
+    to_json_array("${RAW_LIBS}" ARDUINO_EXTRA_LIBS)
+
+    # 3. Create unique config and work dirs
+    set(TEST_WORK_DIR "${CMAKE_BINARY_DIR}/hil_work_${TEST_NAME}")
+    set(TEST_CONFIG_FILE "${TEST_WORK_DIR}/hil_config.json")
+
+    # Ensure directory exists for configure_file
+    file(MAKE_DIRECTORY ${TEST_WORK_DIR})
+
+    configure_file(
+        ${TESTS_DIR}/hil/arduino/hil_config.json.in # Use a common template
+        ${TEST_CONFIG_FILE}
+        @ONLY
+    )
+
+    # 4. Add the actual test
+    add_test(
+        NAME hil_${TEST_NAME}
+        COMMAND ${Python3_EXECUTABLE}
+            ${TESTS_DIR}/hil/arduino/run_hil_arduino_qutest.py
+            --arduino-cli ${ARDUINO_CLI}
+            --config ${TEST_CONFIG_FILE}
+            --fqbn ${ARDUINO_FQBN_EFFECTIVE}
+            --port ${ARDUINO_PORT}
+            --qspy ${QSPY_BIN}
+            --qutest ${QUTEST_PY}
+            --qpc ${QPC_DIR}
+            --sketch ${TESTS_DIR}/hil/arduino/${SKETCH_SUBDIR}
+            --work-dir ${TEST_WORK_DIR}
+            ${ARGN} # Pass remaining python scripts
+    )
+
+    set_tests_properties(hil_${TEST_NAME} PROPERTIES
+        RUN_SERIAL TRUE
+        LABELS hil
+        TIMEOUT 60
+        ENVIRONMENT "QSPY_LOG=${TEST_WORK_DIR}/qspy.log;QUTEST_TIMEOUT=10.0;QSPY_STARTUP_DELAY=0.8"
+    )
+endfunction()
+
+# =============================================================================
+# | Qpc non posix port
 # =============================================================================
 
-add_library(hil-arduino-lib INTERFACE)
-target_link_libraries(hil-arduino-lib INTERFACE
-    platform-arduino
-    platform-api
-    i2c
-    i2cdev-mpu6050
-)
-target_include_directories(hil-arduino-lib INTERFACE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/components/platform/common/include
-)
+# Create a dedicated target for the Arduino QP Port
+add_library(qp-arduino-port INTERFACE)
 
-# Clear visitation tracking and collect everything starting from hil-arduino-lib
-set_property(GLOBAL PROPERTY REPSPECTRE_VISITED_TARGETS "")
-repspectre_collect_arduino_deps_recursive(
-    hil-arduino-lib
-    RAW_INCLUDES
-    RAW_LIBS
+target_sources(qp-arduino-port INTERFACE
+    # The actual port files for Arduino/QUTest
+    "${CMAKE_CURRENT_SOURCE_DIR}/ports/arduino-qutest/qutest_port_arduino.cpp"
+
+    # Required QP Core sources for the Arduino build
+    "${QPC_DIR}/src/qf/qep_hsm.c"
+    "${QPC_DIR}/src/qf/qf_act.c"
+    "${QPC_DIR}/src/qf/qf_actq.c"
+    "${QPC_DIR}/src/qf/qf_ps.c"
+    "${QPC_DIR}/src/qf/qf_time.c"
+    "${QPC_DIR}/src/qs/qs.c"
+    "${QPC_DIR}/src/qs/qs_rx.c"
+    "${QPC_DIR}/src/qs/qutest.c"
 )
 
-# Final conversion to JSON
-to_json_array("${RAW_INCLUDES}" ARDUINO_EXTRA_INCLUDES)
-to_json_array("${RAW_LIBS}" ARDUINO_EXTRA_LIBS)
-
-set(HIL_CONFIG_FILE ${CMAKE_BINARY_DIR}/hil_config.json)
-configure_file(
-    ${TESTS_DIR}/hil/arduino/hil_config.json.in
-    ${HIL_CONFIG_FILE}
-    @ONLY
+target_include_directories(qp-arduino-port INTERFACE
+    "${CMAKE_CURRENT_SOURCE_DIR}/ports/arduino-qutest"
+    "${QPC_DIR}/src"
 )
 
-add_test(
-    NAME hil_sensor_test
-    COMMAND ${Python3_EXECUTABLE}
-        ${TESTS_DIR}/hil/arduino/run_hil_arduino_qutest.py
-        --arduino-cli ${ARDUINO_CLI}
-        --config ${HIL_CONFIG_FILE}
-        --fqbn ${ARDUINO_FQBN_EFFECTIVE}
-        --port ${ARDUINO_PORT}
-        --qspy ${QSPY_BIN}
-        --qutest ${QUTEST_PY}
-        --qpc ${QPC_DIR}
-        --sketch ${TESTS_DIR}/hil/arduino/sensor_test
-        --work-dir ${CMAKE_BINARY_DIR}/hil_work
-        ${TESTS_DIR}/hil/arduino/sensor_test/command_tests.py
-        ${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py
+target_compile_definitions(qp-arduino-port INTERFACE
+    Q_SPY
+    Q_UTEST
 )
 
-set_tests_properties(hil_sensor_test PROPERTIES
-    RUN_SERIAL TRUE
-    LABELS hil
-    TIMEOUT 60
-    ENVIRONMENT "QSPY_LOG=${CMAKE_BINARY_DIR}/hil_work/qspy.log;QUTEST_TIMEOUT=10.0;QSPY_STARTUP_DELAY=0.8"
+# =============================================================================
+# Now adding tests is a one-liner:
+# =============================================================================
+# NOTE: Tests run serially
+
+# disabled for now
+# add_hil_test(sensor_test "sensor_test"
+#     "platform-arduino;platform-api;i2c;i2cdev-mpu6050"
+#     "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"
+# )
+
+add_hil_test(sequencer_test "sequencer_test"
+    "qp-arduino-port;sensorAO;platform-arduino;qp-headers;sequencerAO"
+    "${TESTS_DIR}/hil/arduino/sequencer_test/sequencer_test.py"
 )
