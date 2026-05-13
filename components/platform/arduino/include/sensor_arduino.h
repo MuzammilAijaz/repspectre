@@ -17,7 +17,7 @@ enum {
 
 // Helper function.., doesnt belong here
 // TODO: refactor
-void setI2cDriver(I2cDrv* i2c_driver);
+void Spy_setI2cDriver(I2cDrv* i2c_driver);
 
 // Spy helpers
 bool Spy_getMpuFlag();

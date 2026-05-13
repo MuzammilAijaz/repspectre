@@ -105,6 +105,11 @@ void Spy_checkLatestMpuISR(void) {
     //     mpuSampleReadyFlagWasSet = true;
     // }
 }
+
+void Spy_setI2cDriver(I2cDrv* i2c_driver) {
+    i2c = i2c_driver;
+}
+
 // =============================================================================
 
 static void MPU6050_ISR_ATTR mpuISR(void) {
@@ -126,11 +131,6 @@ static uint8_t mpu6050SampleRateDivider(uint16_t sample_rate_hz) {
     return (uint8_t)(divider - 1U);
 }
 
-// Helper function.., doesnt belong here
-// TODO: refactor
-void setI2cDriver(I2cDrv* i2c_driver) {
-    i2c = i2c_driver;
-}
 
 /**
  * Orchestrate the initialization of mpu, interrupts and dmp.
@@ -138,7 +138,12 @@ void setI2cDriver(I2cDrv* i2c_driver) {
  * @see mpu6050DmpInitialize for more information on sequence.
  * */
 SensorStatus mpu6050_init_adapter(SensorConfig config) {
+    // FIXME: refactor to call a getter instead!!!
+    i2c = &sensorsBus;
+
     assert(i2c != NULL);
+    assert(i2c->def != NULL);
+
     mpu6050Init(i2c);
 
     mpu6050Reset();

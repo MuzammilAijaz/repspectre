@@ -114,7 +114,6 @@ void QS_onCommand(uint8_t cmdId,
             {
                 // platform implementation for arduino
                 setSensorBusDef(&arduinoSensorBusDef);
-                setI2cDriver(&sensorsBus);
                 i2cdrvInit(&sensorsBus);
 
                 SensorConfig config = {
@@ -230,7 +229,7 @@ void QS_onCommand(uint8_t cmdId,
         case 9U:
             {
                 setSensorBusDef(&arduinoSensorBusDef);
-                setI2cDriver(&sensorsBus); // not required
+                Spy_setI2cDriver(&sensorsBus); // not required
                 i2cdrvInit(&sensorsBus);
                 mpu6050Init(&sensorsBus); // not required
                 bool val = mpu6050TestConnection();
