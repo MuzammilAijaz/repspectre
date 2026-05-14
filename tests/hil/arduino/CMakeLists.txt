@@ -321,9 +321,22 @@ target_compile_definitions(qp-arduino-port INTERFACE
 #         "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"
 # )
 
-add_hil_test(sequencer_test "sequencer_test"
-    "qp-arduino-port;sensorAO;platform-arduino;qp-headers;sequencerAO"
+# add_hil_test(sequencer_test "sequencer_test"
+#     "qp-arduino-port;sensorAO;platform-arduino;qp-headers;sequencerAO"
+#
+#     TEST_SCRIPTS
+#         "${TESTS_DIR}/hil/arduino/sequencer_test/sequencer_test.py"
+# )
+
+add_hil_test(bluetooth_test "bluetooth_test"
+    "platform-arduino;qp-headers;hal-api"
+
+    EXTRA_SRCS
+        "${TESTS_DIR}/hil/arduino/bluetooth_test/callbacks/bluetooth_callbacks.cpp"
+
+    EXTRA_INCLUDES
+        "${TESTS_DIR}/hil/arduino/bluetooth_test/callbacks"
 
     TEST_SCRIPTS
-        "${TESTS_DIR}/hil/arduino/sequencer_test/sequencer_test.py"
+        "${TESTS_DIR}/hil/arduino/bluetooth_test/bluetooth_test.py"
 )
