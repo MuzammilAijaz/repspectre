@@ -51,6 +51,7 @@ enum {
 
     CMD_DELAY_FOR,
     CMD_BT_CALLBACK_QS_PRINT_TEST,
+    CMD_GET_BT_ADDRESS,
 
     TOTAL_COMMAND_SIGNALS
 };
@@ -63,7 +64,9 @@ static void resetFixtureState(void) {
     // Stop advertising first
     if (pAdvertising != nullptr) {
         if (pAdvertising->isAdvertising()) {
-            pAdvertising->stop();
+            bool val = pAdvertising->stop();
+            assert(val == 1);
+            pAdvertising->reset();
         }
         pAdvertising = nullptr;
     }
@@ -81,6 +84,7 @@ static void resetFixtureState(void) {
             pServer->disconnect(connIds[i]);
         }
     }
+    assert(NimBLEDevice::getConnectedClients().size() == 0);
 
     // Clear service pointers
     pDeadService = nullptr;
@@ -105,6 +109,7 @@ static void QS_userDictionaries(void) {
     QS_ENUM_DICTIONARY(CMD_BT_NOTIFY, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_BT_PRINT_STATUS, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_BT_CALLBACK_QS_PRINT_TEST, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_GET_BT_ADDRESS, QS_CMD);
 }
 
 static void run_test_fixture() {
@@ -200,6 +205,7 @@ void QS_onCommand(uint8_t cmdId,
                 pAdvertising->addServiceUUID(pBaadService->getUUID());
                 pAdvertising->enableScanResponse(true);
                 pAdvertising->setPreferredParams(0x06, 0x12);
+                pAdvertising->setName("RepHIL-Server");
 
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR("P");
@@ -211,10 +217,11 @@ void QS_onCommand(uint8_t cmdId,
             {
                 assert(pAdvertising);
 
-                pAdvertising->start();
-                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                    QS_STR("ADV1");
-                QS_END();
+                if (pAdvertising->start()) {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("ADV1");
+                    QS_END();
+                }
 
                 break;
             }
@@ -223,10 +230,11 @@ void QS_onCommand(uint8_t cmdId,
             {
                 assert(pAdvertising);
 
-                pAdvertising->stop();
-                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                    QS_STR("ADV0");
-                QS_END();
+                if (pAdvertising->stop()) {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("ADV0");
+                    QS_END();
+                }
 
                 break;
             }
@@ -286,6 +294,18 @@ void QS_onCommand(uint8_t cmdId,
 
                 // call the callback explicilty
                 chrCallbacks.onStatus(pDeadChar, 42);
+
+                break;
+            }
+
+        case CMD_GET_BT_ADDRESS:
+            {
+                NimBLEAddress addr = NimBLEDevice::getAddress();
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR(addr.toString().c_str());
+                QS_END();
+
+                break;
             }
 
         default:

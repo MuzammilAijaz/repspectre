@@ -23,13 +23,10 @@ DescriptorCallbacks dscCallbacks;
 
 void ServerCallbacks::onConnect(NimBLEServer* pServer, NimBLEConnInfo& connInfo)  {
     // Serial.printf("Client connected:\n%s", connInfo.toString().c_str());
-    trace_bt("ServerCallbacks::onConnect - Client connected");
+    std::string str = "ServerCallbacks::onConnect - Client connected: ";
+    str += connInfo.getAddress().toString();
 
-    std::string info = connInfo.toString();
-    if (info.length() > 40) {
-        info = info.substr(0, 40);
-    }
-    trace_bt(info.c_str());
+    trace_bt(str.c_str());
 
     /**
      *  We can use the connection handle here to ask for different connection parameters.
@@ -140,18 +137,20 @@ void CharacteristicCallbacks::onSubscribe(NimBLECharacteristic* pCharacteristic,
     str             += connInfo.getConnHandle();
     str             += " Address: ";
     str             += connInfo.getAddress().toString();
-    if (subValue == 0) {
-        str += " Unsubscribed to ";
-    } else if (subValue == 1) {
-        str += " Subscribed to notifications for ";
-    } else if (subValue == 2) {
-        str += " Subscribed to indications for ";
-    } else if (subValue == 3) {
-        str += " Subscribed to notifications and indications for ";
-    }
-    str += std::string(pCharacteristic->getUUID());
-
     trace_bt(str.c_str());
+
+    std::string str1;
+    if (subValue == 0) {
+        str1 += " Unsubscribed to ";
+    } else if (subValue == 1) {
+        str1 += " Subscribed to notifications for ";
+    } else if (subValue == 2) {
+        str1 += " Subscribed to indications for ";
+    } else if (subValue == 3) {
+        str1 += " Subscribed to notifications and indications for ";
+    }
+    str1 += std::string(pCharacteristic->getUUID());
+    trace_bt(str1.c_str());
     // Serial.printf("%s\n", str.c_str());
 }
 
