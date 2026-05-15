@@ -1,11 +1,3 @@
-# fix host module not being found by telling the script to set
-# the current file as root.
-# import sys
-# from pathlib import Path
-# print("CWD:", Path.cwd())
-# print("sys.path[0]:", sys.path[0])
-# print("sys.path:", sys.path)
-
 import asyncio
 import time
 from host.ble_controller import BLEHost
@@ -22,7 +14,7 @@ host = BLEHost()
 # ---- Test Params --------------------------------------------
 targetAddress = "b4:3a:45:a8:db:a9"
 hostAddress = host.get_host_ble_address()
-MTU = 256
+MTU = 500
 TIME_TO_CONNECT = 5
 TIME_TO_DETECT = 5
 TOTAL_TIME_TO_CONNECT = TIME_TO_CONNECT + TIME_TO_DETECT
@@ -157,6 +149,35 @@ if (total_time > TOTAL_TIME_TO_CONNECT):
 # expect connected success
 expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onConnect - Client connected: {hostAddress}")
 expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onMTUChange - MTU={MTU} ConnID=1")
+
+# =============================================================================
+
+test("MTU: Changing mtu before connection establishes, works")
+command("CMD_BT_INIT")
+expect("@timestamp HIL_TEST_SIG INIT")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+# NOTE: set MTU BEFORE establishing connection and AFTER init
+command("CMD_BT_SET_MTU", 350)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command("CMD_BT_PROF")
+expect("@timestamp HIL_TEST_SIG P")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command("CMD_BT_START_ADV")
+expect("@timestamp HIL_TEST_SIG ADV1")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+# request connection to host
+elapsed_scan_time, elapsed_conn_time = \
+        asyncio.run( host.scan_and_connect("RepHIL-Server", scan_timeout_s=TIME_TO_DETECT, conn_timeout_s=TIME_TO_CONNECT))
+total_time = elapsed_scan_time + elapsed_conn_time
+print("Scan time:", elapsed_scan_time)
+print("Connect time:", elapsed_conn_time)
+print("total time:", total_time)
+if (total_time > TOTAL_TIME_TO_CONNECT):
+    expect(f"FAIL: Time greater than {TOTAL_TIME_TO_CONNECT}")
+# expect connected success
+expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onConnect - Client connected: {hostAddress}")
+expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onMTUChange - MTU=350 ConnID=1")
+# expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
 # | Tracing System Tests

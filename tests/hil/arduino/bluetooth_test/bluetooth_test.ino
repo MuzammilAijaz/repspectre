@@ -17,7 +17,6 @@
 #include <NimBLEDevice.h>
 #include <NimBLEBeacon.h>
 #include "bluetooth_callbacks.hpp"
-#include <assert.h>
 
 extern "C" {
 #include "qpc.h"
@@ -48,6 +47,7 @@ enum {
     CMD_BT_NOTIFY,
 
     CMD_BT_PRINT_STATUS,
+    CMD_BT_SET_MTU,
 
     CMD_DELAY_FOR,
     CMD_BT_CALLBACK_QS_PRINT_TEST,
@@ -65,7 +65,7 @@ static void resetFixtureState(void) {
     if (pAdvertising != nullptr) {
         if (pAdvertising->isAdvertising()) {
             bool val = pAdvertising->stop();
-            assert(val == 1);
+            Q_ASSERT(val == 1);
             pAdvertising->reset();
         }
         pAdvertising = nullptr;
@@ -84,7 +84,7 @@ static void resetFixtureState(void) {
             pServer->disconnect(connIds[i]);
         }
     }
-    assert(NimBLEDevice::getConnectedClients().size() == 0);
+    Q_ASSERT(NimBLEDevice::getConnectedClients().size() == 0);
 
     // Clear service pointers
     pDeadService = nullptr;
@@ -93,6 +93,7 @@ static void resetFixtureState(void) {
 
     // Fully shutdown NimBLE stack
     NimBLEDevice::deinit(true);
+    delay(10); // let the host know the device has been disconnected; to allow safer reconnections.
 }
 
 static void QS_userDictionaries(void) {
@@ -110,6 +111,7 @@ static void QS_userDictionaries(void) {
     QS_ENUM_DICTIONARY(CMD_BT_PRINT_STATUS, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_BT_CALLBACK_QS_PRINT_TEST, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_GET_BT_ADDRESS, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_BT_SET_MTU, QS_CMD);
 }
 
 static void run_test_fixture() {
@@ -170,6 +172,7 @@ void QS_onCommand(uint8_t cmdId,
         case CMD_BT_INIT:
             {
                 NimBLEDevice::init("RepHIL");
+                NimBLEDevice::setMTU(500);
                 pServer = NimBLEDevice::createServer();
                 pServer->setCallbacks(&serverCallbacks);
 
@@ -215,7 +218,7 @@ void QS_onCommand(uint8_t cmdId,
 
         case CMD_BT_START_ADV:
             {
-                assert(pAdvertising);
+                Q_ASSERT(pAdvertising);
 
                 if (pAdvertising->start()) {
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
@@ -228,7 +231,7 @@ void QS_onCommand(uint8_t cmdId,
 
         case CMD_BT_STOP_ADV:
             {
-                assert(pAdvertising);
+                Q_ASSERT(pAdvertising);
 
                 if (pAdvertising->stop()) {
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
@@ -241,8 +244,8 @@ void QS_onCommand(uint8_t cmdId,
 
         case CMD_BT_NOTIFY:
             {
-                assert(pAdvertising);
-                assert(pDeadService);
+                Q_ASSERT(pAdvertising);
+                Q_ASSERT(pDeadService);
 
                 NimBLECharacteristic* pChar = pDeadService->getCharacteristic(characteristicKey);
                 if (pChar) {
@@ -261,7 +264,7 @@ void QS_onCommand(uint8_t cmdId,
 
         case CMD_BT_PRINT_STATUS:
             {
-                assert(pAdvertising);
+                Q_ASSERT(pAdvertising);
 
                 bool is_adv = false;
                 is_adv = pAdvertising->isAdvertising();
@@ -272,13 +275,25 @@ void QS_onCommand(uint8_t cmdId,
                 break;
             }
 
+        case CMD_BT_SET_MTU:
+            {
+                // Q_ASSERT a device is connected
+                Q_ASSERT(pServer);
+                Q_ASSERT(param1 <= BLE_ATT_MTU_MAX && param1 > 23);
+
+                bool ret = NimBLEDevice::setMTU(param1);
+                Q_ASSERT(ret == 1);
+                break;
+
+            }
+
         // =============================================================================
 
         case CMD_BT_CALLBACK_QS_PRINT_TEST:
             {
-                assert(pServer);
-                assert(pAdvertising);
-                assert(pDeadService);
+                Q_ASSERT(pServer);
+                Q_ASSERT(pAdvertising);
+                Q_ASSERT(pDeadService);
 
                 NimBLECharacteristic* pDeadChar = pDeadService->createCharacteristic(
                     characteristicKey,
@@ -318,7 +333,6 @@ void QS_onCommand(uint8_t cmdId,
 
 void QS_onTestSetup(void) {
     resetFixtureState();
-
 }
 
 /** Runs after every test in the qutest script.

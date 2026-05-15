@@ -46,13 +46,13 @@ void ServerCallbacks::onDisconnect(NimBLEServer* pServer, NimBLEConnInfo& connIn
 }
 
 void ServerCallbacks::onMTUChange(uint16_t MTU, NimBLEConnInfo& connInfo)  {
-    // Serial.printf("MTU updated: %u for connection ID: %u\n", MTU, connInfo.getConnHandle());
-    char buf[80];
-    snprintf(buf, sizeof(buf),
-            "ServerCallbacks::onMTUChange - MTU=%u ConnID=%u",
-            MTU, connInfo.getConnHandle());
+    Serial.printf("MTU updated: %u for connection ID: %u\n", MTU, connInfo.getConnHandle());
+    std::string str = "ServerCallbacks::onMTUChange - MTU="
+        + std::to_string(MTU)
+        + " ConnID="
+        + std::to_string(connInfo.getConnHandle());
 
-    trace_bt(buf);
+    trace_bt(str.c_str());
 }
 
 /********************* Security handled here *********************/
