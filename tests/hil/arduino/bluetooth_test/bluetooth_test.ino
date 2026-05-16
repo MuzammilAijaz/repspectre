@@ -72,6 +72,7 @@ enum {
     CMD_DELAY_FOR,
     CMD_BT_CALLBACK_QS_PRINT_TEST,
     CMD_GET_BT_ADDRESS,
+    CMD_BT_SET_VALUE,
 
     TOTAL_COMMAND_SIGNALS
 };
@@ -140,6 +141,7 @@ static void QS_userDictionaries(void) {
     QS_ENUM_DICTIONARY(CMD_BT_CALLBACK_QS_PRINT_TEST, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_GET_BT_ADDRESS, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_BT_SET_MTU, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_BT_SET_VALUE, QS_CMD);
 }
 
 static void run_test_fixture() {
@@ -229,7 +231,7 @@ void QS_onCommand(uint8_t cmdId,
 
                 pDeadChar->setCallbacks(&chrCallbacks);
                 pDeadChar->setValue("INIT");
-                // create descriptor 
+                // create descriptor
                 NimBLE2904* pDead2904 = pDeadChar->create2904();
                 pDead2904->setFormat(NimBLE2904::FORMAT_UTF8);
                 pDead2904->setCallbacks(&dscCallbacks);
@@ -324,7 +326,26 @@ void QS_onCommand(uint8_t cmdId,
 
             }
 
-        // =============================================================================
+        case CMD_BT_SET_VALUE:
+            {
+                Q_ASSERT(pDeadService);
+                NimBLECharacteristic* pChar = pDeadService->getCharacteristic(characteristicKey);
+
+                Q_ASSERT(pChar);
+
+                char buf[16];
+                snprintf(buf, sizeof(buf), "V:%u", (unsigned)param1);
+
+                pChar->setValue(buf);
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("SETVAL");
+                QS_END();
+
+                break;
+            }
+
+            // =============================================================================
 
         case CMD_BT_CALLBACK_QS_PRINT_TEST:
             {

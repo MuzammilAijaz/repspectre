@@ -135,8 +135,6 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 # | -------- | ----------------------------------- | ------------------------------
 # | HIGH     | Reconnect after disconnect          | real phones do this constantly
 # | HIGH     | Notifications actually reach client | core BLE functionality
-# | HIGH     | Read characteristic from host       | verifies GATT correctness
-# | HIGH     | Write characteristic from host      | verifies command/control path
 # | HIGH     | Disconnect recovery auto-advertises | critical UX
 # | HIGH     | Rapid reconnect stability           | catches stack cleanup bugs
 # | MEDIUM   | Multiple notifications sequence     | catches queue/MTU issues
@@ -148,6 +146,8 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 # | DONE:
 # | -----
 # | HIGH     | Subscribe/unsubscribe               | validates CCCD handling
+# | HIGH     | Read characteristic from host       | verifies GATT correctness
+# | HIGH     | Write characteristic from host      | verifies command/control path
 # =============================================================================
 
 test(f"connects successfully under {TOTAL_TIME_TO_CONNECT} seconds")
@@ -247,6 +247,32 @@ expect("@timestamp HIL_TEST_SIG NOTIFY_OK")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG Characteristic::onStatus code=0 (*)")
 assert data == b'V:42', f"Expected notification payload b'V:42', got {data!r}"
+
+# ==== NO RESET ===============================================================
+
+test("BT: Host write reaches characteristic", NORESET)
+
+loop.run_until_complete(
+    host.write_characteristic(
+        characteristic_uuid=CHAR_UUID,
+        data=b"HELLO"
+    )
+)
+expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG Characteristic::onWrite UUID=0xbeef Value=HELLO")
+
+# ==== NO RESET ===============================================================
+
+test("BT: Host reads characteristic value", NORESET)
+
+command("CMD_BT_SET_VALUE", 77)
+expect("@timestamp HIL_TEST_SIG SETVAL")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+data = loop.run_until_complete(
+    host.read_characteristic(characteristic_uuid=CHAR_UUID)
+)
+expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG Characteristic::onRead UUID=0xbeef Value=V:77")
+assert data == b"V:77"
 
 # ==== NO RESET ===============================================================
 

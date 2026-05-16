@@ -119,6 +119,12 @@ class BLEHost:
     async def unsubscribe(self, characteristic_uuid):
         await self.client.stop_notify(characteristic_uuid)
 
+    async def write_characteristic(self, characteristic_uuid, data):
+        await self.client.write_gatt_char(characteristic_uuid, data)
+
+    async def read_characteristic(self, characteristic_uuid):
+        return await self.client.read_gatt_char(characteristic_uuid)
+
     async def disconnect(self):
         if self.client:
             await self.client.disconnect()
