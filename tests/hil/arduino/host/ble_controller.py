@@ -1,3 +1,14 @@
+#*****************************************************************************
+# Interface to control bluetooth on the host device using bleak
+#-----------------------------------------------------------------------------
+# TODO:
+# -----
+#  - establish consistent api for either : exceptions on timeouts, or
+#    simply return elapsed time; using exceptions causes script to fully
+#    stop further execution.
+#
+#*****************************************************************************
+
 # Ble controller using Bleak
 
 import bleak
@@ -128,6 +139,25 @@ class BLEHost:
     async def disconnect(self):
         if self.client:
             await self.client.disconnect()
+
+    # Function that directly connects without scanning.
+    async def reconnect(self, timeout_s=1):
+        start = time.monotonic()
+        # Attempt direct connect without scanning
+        try:
+            await asyncio.wait_for(
+                    self.client.connect(),
+                    timeout=timeout_s
+                    )
+            print("Reconnect time:", time.monotonic() - start)
+            if not self.client.is_connected:
+                raise RuntimeError("Connection failed")
+        except asyncio.TimeoutError:
+            raise RuntimeError(
+                    f"Couldn't connect within {timeout_s} seconds."
+            )
+        finally:
+            pass
 
     # TODO: make it os/platform independent
     # WARN: specific to BlueZ stack, linux

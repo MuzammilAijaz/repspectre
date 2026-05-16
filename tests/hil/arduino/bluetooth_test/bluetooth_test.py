@@ -1,5 +1,19 @@
+#*****************************************************************************
+# Test real bluetooth behaviour between target and host
+#-----------------------------------------------------------------------------
+# Known Problems:
+# ---------------
+#  - tests with timeout (especially with tighter constraints) are NOT consistent.
+#
+# Areas to Improve:
+# -----------------
+#  - huge monolithic tests take too long to complete. especially ones involving
+#    whole BLE connection lifecyle. Utilize NORESET to modularize.
+#  - some tests might be redundant
+#
+#*****************************************************************************
+
 import asyncio
-import time
 from host.ble_controller import BLEHost
 from enum import IntEnum
 
@@ -21,6 +35,7 @@ hostAddress = host.get_host_ble_address()
 MTU = 500
 TIME_TO_CONNECT = 10
 TIME_TO_DETECT = 10
+TIME_TO_RECONNECT = 7
 TOTAL_TIME_TO_CONNECT = TIME_TO_CONNECT + TIME_TO_DETECT
 # -------------------------------------------------------------
 
@@ -83,7 +98,7 @@ command("CMD_BT_START_ADV")
 expect("@timestamp HIL_TEST_SIG ADV1")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 # Check status
-command("CMD_BT_PRINT_STATUS")
+command("CMD_BT_ADV_PRINT_STATUS")
 expect("@timestamp HIL_TEST_SIG ADV")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 # Stop Advertising
@@ -91,7 +106,7 @@ command("CMD_BT_STOP_ADV")
 expect("@timestamp HIL_TEST_SIG ADV0")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 # Check status again
-command("CMD_BT_PRINT_STATUS")
+command("CMD_BT_ADV_PRINT_STATUS")
 expect("@timestamp HIL_TEST_SIG IDL")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
@@ -132,11 +147,7 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 # | TODO:
 # | -----
 # | Priority | Test                                | Why it matters
-# | -------- | ----------------------------------- | ------------------------------
-# | HIGH     | Reconnect after disconnect          | real phones do this constantly
-# | HIGH     | Notifications actually reach client | core BLE functionality
-# | HIGH     | Disconnect recovery auto-advertises | critical UX
-# | HIGH     | Rapid reconnect stability           | catches stack cleanup bugs
+# | -------- | ----------------------------------- | --------------------------
 # | MEDIUM   | Multiple notifications sequence     | catches queue/MTU issues
 # | MEDIUM   | Advertising stops after connect     | optional product behavior
 # | MEDIUM   | Invalid characteristic access fails | robustness
@@ -146,8 +157,12 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 # | DONE:
 # | -----
 # | HIGH     | Subscribe/unsubscribe               | validates CCCD handling
+# | HIGH     | Notifications actually reach client | core BLE functionality
 # | HIGH     | Read characteristic from host       | verifies GATT correctness
 # | HIGH     | Write characteristic from host      | verifies command/control path
+# | HIGH     | Disconnect recovery auto-advertises | critical UX
+# | HIGH     | Rapid reconnect stability           | catches stack cleanup bugs
+# | HIGH     | Reconnect after disconnect          | real phones do this constantly
 # =============================================================================
 
 test(f"connects successfully under {TOTAL_TIME_TO_CONNECT} seconds")
@@ -294,6 +309,61 @@ expect("@timestamp HIL_TEST_SIG NOTIFY_OK")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 # expect no data
 assert data == b'', f"Expected notification payload b'', got {data!r}"
+
+# ==== NO RESET ===============================================================
+
+test("BT: Device resumes advertising after disconnect", NORESET)
+
+loop.run_until_complete(host.disconnect())
+expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onDisconnect - Client disconnected, start advertising")
+
+command("CMD_BT_ADV_PRINT_STATUS")
+expect("@timestamp HIL_TEST_SIG ADV")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# ==== NO RESET ===============================================================
+
+test(f"BT: Device reconnects after disconnects in <={TIME_TO_RECONNECT}", NORESET)
+
+loop.run_until_complete(
+    host.reconnect(timeout_s=TIME_TO_RECONNECT) # directly connects to cached target
+)
+expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onConnect - Client connected: {hostAddress}")
+expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onMTUChange - MTU={MTU} ConnID=1")
+
+# =============================================================================
+
+test("BT: Reconnects repeatedly without failure")
+
+for i in range(5):
+    print("Reconnect cycle:", i)
+
+    command("CMD_BT_INIT")
+    expect("@timestamp HIL_TEST_SIG INIT")
+    expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+    command("CMD_BT_PROF")
+    expect("@timestamp HIL_TEST_SIG P")
+    expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+    command("CMD_BT_START_ADV")
+    expect("@timestamp HIL_TEST_SIG ADV1")
+    expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+    loop.run_until_complete(
+        host.scan_and_connect(
+            "RepHIL-Server",
+            scan_timeout_s=TIME_TO_DETECT,
+            conn_timeout_s=TIME_TO_CONNECT
+        )
+    )
+
+    expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onConnect - Client connected: {hostAddress}")
+    expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onMTUChange - MTU={MTU} ConnID=1")
+
+    loop.run_until_complete(host.disconnect())
+
+    expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onDisconnect - Client disconnected, start advertising")
 
 # =============================================================================
 # | Tracing System Tests

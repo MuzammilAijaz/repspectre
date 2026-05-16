@@ -66,7 +66,7 @@ enum {
 
     CMD_BT_NOTIFY,
 
-    CMD_BT_PRINT_STATUS,
+    CMD_BT_ADV_PRINT_STATUS,
     CMD_BT_SET_MTU,
 
     CMD_DELAY_FOR,
@@ -137,7 +137,7 @@ static void QS_userDictionaries(void) {
     QS_ENUM_DICTIONARY(CMD_BT_START_ADV, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_BT_STOP_ADV, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_BT_NOTIFY, QS_CMD);
-    QS_ENUM_DICTIONARY(CMD_BT_PRINT_STATUS, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_BT_ADV_PRINT_STATUS, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_BT_CALLBACK_QS_PRINT_TEST, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_GET_BT_ADDRESS, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_BT_SET_MTU, QS_CMD);
@@ -301,7 +301,7 @@ void QS_onCommand(uint8_t cmdId,
                 break;
             }
 
-        case CMD_BT_PRINT_STATUS:
+        case CMD_BT_ADV_PRINT_STATUS:
             {
                 Q_ASSERT(pAdvertising);
 
