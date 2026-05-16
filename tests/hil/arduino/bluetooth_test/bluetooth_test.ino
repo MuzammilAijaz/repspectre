@@ -61,39 +61,47 @@ enum {
 };
 
 static void resetFixtureState(void) {
-    // Stop advertising first
-    if (pAdvertising != nullptr) {
-        if (pAdvertising->isAdvertising()) {
-            bool val = pAdvertising->stop();
-            Q_ASSERT(val == 1);
-            pAdvertising->reset();
+    if (NimBLEDevice::isInitialized()) {
+        // Stop advertising first
+        if (pAdvertising != nullptr) {
+            if (pAdvertising->isAdvertising()) {
+                bool val = pAdvertising->stop();
+                Q_ASSERT(val == 1);
+                pAdvertising->reset();
+            }
+            pAdvertising = nullptr;
         }
+
+        // Disconnect all clients if server exists
+        if (pServer != nullptr) {
+            uint16_t connIds[CONFIG_BT_NIMBLE_MAX_CONNECTIONS];
+            size_t count = pServer->getConnectedCount();
+
+            for (size_t i = 0; i < count; ++i) {
+                connIds[i] = pServer->getPeerInfo(i).getConnHandle();
+            }
+
+            for (size_t i = 0; i < count; ++i) {
+                pServer->disconnect(connIds[i]);
+            }
+        }
+        Q_ASSERT(NimBLEDevice::getConnectedClients().size() == 0);
+
+        // Clear service pointers
+        pDeadService = nullptr;
+        pBaadService = nullptr;
+        pServer = nullptr;
+
+        // Fully shutdown NimBLE stack
+        NimBLEDevice::deinit(true);
+        delay(10); // let the host know the device has been disconnected; to allow safer reconnections.
+    }
+    else {
         pAdvertising = nullptr;
+        pDeadService = nullptr;
+        pBaadService = nullptr;
+        pServer = nullptr;
     }
-
-    // Disconnect all clients if server exists
-    if (pServer != nullptr) {
-        uint16_t connIds[CONFIG_BT_NIMBLE_MAX_CONNECTIONS];
-        size_t count = pServer->getConnectedCount();
-
-        for (size_t i = 0; i < count; ++i) {
-            connIds[i] = pServer->getPeerInfo(i).getConnHandle();
-        }
-
-        for (size_t i = 0; i < count; ++i) {
-            pServer->disconnect(connIds[i]);
-        }
-    }
-    Q_ASSERT(NimBLEDevice::getConnectedClients().size() == 0);
-
-    // Clear service pointers
-    pDeadService = nullptr;
-    pBaadService = nullptr;
-    pServer = nullptr;
-
-    // Fully shutdown NimBLE stack
-    NimBLEDevice::deinit(true);
-    delay(10); // let the host know the device has been disconnected; to allow safer reconnections.
 }
 
 static void QS_userDictionaries(void) {
@@ -332,16 +340,9 @@ void QS_onCommand(uint8_t cmdId,
 }
 
 void QS_onTestSetup(void) {
-    resetFixtureState();
 }
 
-/** Runs after every test in the qutest script.
- * @see `on_reset` inside qutest script, which runs on every mcu reset
- */
 void QS_onTestTeardown(void) {
-    // RESEARCH: more on how and when this function actually runs.
-    // this fails the tests but calling it in QS_onTestSetup works???
-    // resetFixtureState();
 }
 
 void QS_onTestEvt(QEvt *e) {
