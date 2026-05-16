@@ -11,6 +11,26 @@
 ///  3. Traditional TDD unit test the Bluetooth api.
 ///     - Test the BluetoothAO or the Bluetooth
 ///
+/// BLE Test Fixture Overview:
+/// --------------------------
+///  Server:
+///    - Created in CMD_BT_INIT
+///    - Callback: serverCallbacks
+///
+///  Services:
+///    1) DEAD ("DEAD")
+///       - Characteristic: "BEEF"
+///           - Properties: READ | WRITE | NOTIFY
+///           - Initial value: "INIT"
+///           - Descriptor: NimBLE2904 (UTF8)
+///           - Callback: chrCallbacks
+///    2) BAAD ("BAAD")
+///       - No characteristics
+///
+///  Advertising:
+///    - Name: "RepHIL-Server"
+///    - Advertises DEAD and BAAD services
+///    - Scan response enabled
 ///*****************************************************************************
 
 #include <Arduino.h>
@@ -195,9 +215,11 @@ void QS_onCommand(uint8_t cmdId,
 
         case CMD_BT_PROF:
             {
+                // create 2 services
                 pDeadService = pServer->createService("DEAD");
                 pBaadService = pServer->createService("BAAD");
 
+                // ---- pDead Service ------------------------------------------
                 NimBLECharacteristic* pDeadChar = pDeadService->createCharacteristic(
                     characteristicKey,
                     NIMBLE_PROPERTY::READ |
@@ -207,10 +229,17 @@ void QS_onCommand(uint8_t cmdId,
 
                 pDeadChar->setCallbacks(&chrCallbacks);
                 pDeadChar->setValue("INIT");
+                // create descriptor 
+                NimBLE2904* pDead2904 = pDeadChar->create2904();
+                pDead2904->setFormat(NimBLE2904::FORMAT_UTF8);
+                pDead2904->setCallbacks(&dscCallbacks);
 
                 pDeadService->start();
+
+                // ---- pBaad Service ------------------------------------------
                 pBaadService->start();
 
+                // ---- Setup Advertising --------------------------------------
                 pAdvertising = NimBLEDevice::getAdvertising();
                 pAdvertising->addServiceUUID(pDeadService->getUUID());
                 pAdvertising->addServiceUUID(pBaadService->getUUID());

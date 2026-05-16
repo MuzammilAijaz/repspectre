@@ -134,7 +134,7 @@ void CharacteristicCallbacks::onStatus(NimBLECharacteristic* pCharacteristic, in
 /** Peer subscribed to notifications/indications */
 void CharacteristicCallbacks::onSubscribe(NimBLECharacteristic* pCharacteristic, NimBLEConnInfo& connInfo, uint16_t subValue)  {
     std::string str  = "Client ID: ";
-    str             += connInfo.getConnHandle();
+    str             += std::to_string(connInfo.getConnHandle());
     str             += " Address: ";
     str             += connInfo.getAddress().toString();
     trace_bt(str.c_str());

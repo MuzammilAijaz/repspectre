@@ -27,14 +27,14 @@ class BLEHost:
         target = None
         event = asyncio.Event()
 
-        def detection_callback(device, advertisement_data):
+        def detection_trigger_notify_callback(device, advertisement_data):
             nonlocal target
             print("FOUND:", device.name, device.address)
             if device.name == name:
                 target = device
                 event.set()
 
-        scanner = bleak.BleakScanner(detection_callback)
+        scanner = bleak.BleakScanner(detection_trigger_notify_callback)
         start = time.monotonic()
 
         # find device using scan
@@ -70,6 +70,54 @@ class BLEHost:
 
         elapsed_conn_time = time.monotonic() - start
         return elapsed_scan_time, elapsed_conn_time
+
+    async def subscribe(self, characteristic_uuid):
+        """
+        Subscribe to notifications.
+        """
+        self._notification_event = asyncio.Event()
+        self._notification_data = None
+
+        def cb(_, data):
+            self._notification_data = bytes(data)
+            self._notification_event.set()
+
+        await self.client.start_notify(characteristic_uuid, cb)
+
+        # allow CCCD propagation
+        await asyncio.sleep(0.5)
+
+
+    async def collect_notification(
+        self,
+        trigger_fn,
+        timeout_s=5
+    ):
+        """
+        Trigger a notification and wait for payload.
+        """
+
+        # reset BEFORE trigger
+        self._notification_data = None
+        self._notification_event.clear()
+
+        # trigger notify
+        trigger_fn()
+
+        # wait for callback
+        try:
+            await asyncio.wait_for(
+                self._notification_event.wait(),
+                timeout=timeout_s
+            )
+        except asyncio.TimeoutError:
+            return b''
+
+        return self._notification_data
+
+
+    async def unsubscribe(self, characteristic_uuid):
+        await self.client.stop_notify(characteristic_uuid)
 
     async def disconnect(self):
         if self.client:

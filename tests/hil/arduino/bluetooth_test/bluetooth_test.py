@@ -10,13 +10,17 @@ class RecordType(IntEnum):
     BLUETOOTH_CALLBACK_TEST_SIG = 101
 
 host = BLEHost()
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
 # ---- Test Params --------------------------------------------
+# 0x2904 descriptor with BEEF characteristic
+CHAR_UUID = "0000BEEF-0000-1000-8000-00805F9B34FB"
 targetAddress = "b4:3a:45:a8:db:a9"
 hostAddress = host.get_host_ble_address()
 MTU = 500
-TIME_TO_CONNECT = 5
-TIME_TO_DETECT = 5
+TIME_TO_CONNECT = 10
+TIME_TO_DETECT = 10
 TOTAL_TIME_TO_CONNECT = TIME_TO_CONNECT + TIME_TO_DETECT
 # -------------------------------------------------------------
 
@@ -124,6 +128,26 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
 # | Functional Tests
+# |----------------------------------------------------------------------------
+# | TODO:
+# | -----
+# | Priority | Test                                | Why it matters
+# | -------- | ----------------------------------- | ------------------------------
+# | HIGH     | Reconnect after disconnect          | real phones do this constantly
+# | HIGH     | Notifications actually reach client | core BLE functionality
+# | HIGH     | Read characteristic from host       | verifies GATT correctness
+# | HIGH     | Write characteristic from host      | verifies command/control path
+# | HIGH     | Disconnect recovery auto-advertises | critical UX
+# | HIGH     | Rapid reconnect stability           | catches stack cleanup bugs
+# | MEDIUM   | Multiple notifications sequence     | catches queue/MTU issues
+# | MEDIUM   | Advertising stops after connect     | optional product behavior
+# | MEDIUM   | Invalid characteristic access fails | robustness
+# | LOW      | MTU renegotiation                   | already mostly covered
+# | LOW      | RSSI/connect latency metrics        | nice benchmark data
+# |
+# | DONE:
+# | -----
+# | HIGH     | Subscribe/unsubscribe               | validates CCCD handling
 # =============================================================================
 
 test(f"connects successfully under {TOTAL_TIME_TO_CONNECT} seconds")
@@ -139,7 +163,7 @@ expect("@timestamp HIL_TEST_SIG ADV1")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 # request connection to host
 elapsed_scan_time, elapsed_conn_time = \
-        asyncio.run( host.scan_and_connect("RepHIL-Server", scan_timeout_s=TIME_TO_DETECT, conn_timeout_s=TIME_TO_CONNECT))
+        loop.run_until_complete( host.scan_and_connect("RepHIL-Server", scan_timeout_s=TIME_TO_DETECT, conn_timeout_s=TIME_TO_CONNECT))
 total_time = elapsed_scan_time + elapsed_conn_time
 print("Scan time:", elapsed_scan_time)
 print("Connect time:", elapsed_conn_time)
@@ -167,7 +191,7 @@ expect("@timestamp HIL_TEST_SIG ADV1")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 # request connection to host
 elapsed_scan_time, elapsed_conn_time = \
-        asyncio.run( host.scan_and_connect("RepHIL-Server", scan_timeout_s=TIME_TO_DETECT, conn_timeout_s=TIME_TO_CONNECT))
+        loop.run_until_complete( host.scan_and_connect("RepHIL-Server", scan_timeout_s=TIME_TO_DETECT, conn_timeout_s=TIME_TO_CONNECT))
 total_time = elapsed_scan_time + elapsed_conn_time
 print("Scan time:", elapsed_scan_time)
 print("Connect time:", elapsed_conn_time)
@@ -178,6 +202,72 @@ if (total_time > TOTAL_TIME_TO_CONNECT):
 expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onConnect - Client connected: {hostAddress}")
 expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onMTUChange - MTU=350 ConnID=1")
 # expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# =============================================================================
+
+test("BT: Notification payload reaches host after subscribing")
+
+command("CMD_BT_INIT")
+expect("@timestamp HIL_TEST_SIG INIT")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+command("CMD_BT_PROF")
+expect("@timestamp HIL_TEST_SIG P")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+command("CMD_BT_START_ADV")
+expect("@timestamp HIL_TEST_SIG ADV1")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+loop.run_until_complete(
+    host.scan_and_connect(
+        "RepHIL-Server",
+        scan_timeout_s=TIME_TO_DETECT,
+        conn_timeout_s=TIME_TO_CONNECT
+    )
+)
+expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onConnect - Client connected: {hostAddress}")
+expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onMTUChange - MTU={MTU} ConnID=1")
+
+# subscribe
+loop.run_until_complete(
+    host.subscribe(CHAR_UUID)
+)
+expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG Client ID: 1 Address: {hostAddress}")
+expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG  Subscribed to notifications for 0xbeef")
+
+# collect actual payload by sending command to target, to notify the subscribers
+data = loop.run_until_complete(
+    host.collect_notification(
+        trigger_fn=lambda: command("CMD_BT_NOTIFY", 42),
+        timeout_s=5
+    )
+)
+expect("@timestamp HIL_TEST_SIG NOTIFY_OK")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG Characteristic::onStatus code=0 (*)")
+assert data == b'V:42', f"Expected notification payload b'V:42', got {data!r}"
+
+# ==== NO RESET ===============================================================
+
+test("Clean: Unsubscribing does not result in further notifications", NORESET)
+# cleanup
+loop.run_until_complete(
+    host.unsubscribe(CHAR_UUID)
+)
+expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG Client ID: 1 Address: {hostAddress}")
+expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG  Unsubscribed to 0xbeef")
+
+data = loop.run_until_complete(
+    host.collect_notification(
+        trigger_fn=lambda: command("CMD_BT_NOTIFY", 42),
+        timeout_s=5
+    )
+)
+expect("@timestamp HIL_TEST_SIG NOTIFY_OK")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+# expect no data
+assert data == b'', f"Expected notification payload b'', got {data!r}"
 
 # =============================================================================
 # | Tracing System Tests
