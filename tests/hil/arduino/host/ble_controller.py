@@ -20,6 +20,7 @@ class BLEHost:
 
     def __init__(self):
         self.client = None
+        self.target = None
 
     async def scan_and_connect(self, name, scan_timeout_s=10, conn_timeout_s=3):
         """
@@ -37,6 +38,11 @@ class BLEHost:
         """
         target = None
         event = asyncio.Event()
+
+        if self.client:
+            await self.client.disconnect()
+            self.client = None
+            await asyncio.sleep(0.2)
 
         def detection_trigger_notify_callback(device, advertisement_data):
             nonlocal target
@@ -61,6 +67,7 @@ class BLEHost:
             )
         elapsed_scan_time = time.monotonic() - start
 
+        self.target = target
         self.client = bleak.BleakClient(target)
 
         # when device found, attempt connection
@@ -139,16 +146,20 @@ class BLEHost:
     async def disconnect(self):
         if self.client:
             await self.client.disconnect()
+            self.client = None
 
     # Function that directly connects without scanning.
     async def reconnect(self, timeout_s=1):
         start = time.monotonic()
         # Attempt direct connect without scanning
         try:
+            if self.client is None and self.target is not None:
+                self.client = bleak.BleakClient(self.target)
+
             await asyncio.wait_for(
                     self.client.connect(),
                     timeout=timeout_s
-                    )
+            )
             print("Reconnect time:", time.monotonic() - start)
             if not self.client.is_connected:
                 raise RuntimeError("Connection failed")

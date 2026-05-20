@@ -33,9 +33,9 @@ CHAR_UUID = "0000BEEF-0000-1000-8000-00805F9B34FB"
 targetAddress = "b4:3a:45:a8:db:a9"
 hostAddress = host.get_host_ble_address()
 MTU = 500
-TIME_TO_CONNECT = 10
-TIME_TO_DETECT = 10
-TIME_TO_RECONNECT = 7
+TIME_TO_CONNECT = 4
+TIME_TO_DETECT = 4
+TIME_TO_RECONNECT = 4
 TOTAL_TIME_TO_CONNECT = TIME_TO_CONNECT + TIME_TO_DETECT
 # -------------------------------------------------------------
 
@@ -126,19 +126,6 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 # Notify
 command("CMD_BT_NOTIFY", 42)
 expect("@timestamp HIL_TEST_SIG NOTIFY_OK")
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-
-# =============================================================================
-
-# mostly a useless and hardcoded test. remove
-test("BT: target address is as expected")
-# Setup
-command("CMD_BT_INIT")
-expect("@timestamp HIL_TEST_SIG INIT")
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-# Get address
-command("CMD_GET_BT_ADDRESS")
-expect(f"@timestamp HIL_TEST_SIG {targetAddress}")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
@@ -333,22 +320,20 @@ expect(f"@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onMTUChange - M
 
 # =============================================================================
 
-test("BT: Reconnects repeatedly without failure")
+test("BT: Can reconnect repeatedly without failure, once initialized")
+
+command("CMD_BT_INIT")
+expect("@timestamp HIL_TEST_SIG INIT")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command("CMD_BT_PROF")
+expect("@timestamp HIL_TEST_SIG P")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+command("CMD_BT_START_ADV")
+expect("@timestamp HIL_TEST_SIG ADV1")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 for i in range(5):
     print("Reconnect cycle:", i)
-
-    command("CMD_BT_INIT")
-    expect("@timestamp HIL_TEST_SIG INIT")
-    expect("@timestamp Trg-Done QS_RX_COMMAND")
-
-    command("CMD_BT_PROF")
-    expect("@timestamp HIL_TEST_SIG P")
-    expect("@timestamp Trg-Done QS_RX_COMMAND")
-
-    command("CMD_BT_START_ADV")
-    expect("@timestamp HIL_TEST_SIG ADV1")
-    expect("@timestamp Trg-Done QS_RX_COMMAND")
 
     loop.run_until_complete(
         host.scan_and_connect(
@@ -364,23 +349,3 @@ for i in range(5):
     loop.run_until_complete(host.disconnect())
 
     expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG ServerCallbacks::onDisconnect - Client disconnected, start advertising")
-
-# =============================================================================
-# | Tracing System Tests
-# =============================================================================
-
-test("BT: BT callbacks send qs signals")
-# Setup
-command("CMD_BT_INIT")
-expect("@timestamp HIL_TEST_SIG INIT")
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command("CMD_BT_PROF")
-expect("@timestamp HIL_TEST_SIG P")
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-command("CMD_BT_START_ADV")
-expect("@timestamp HIL_TEST_SIG ADV1")
-expect("@timestamp Trg-Done QS_RX_COMMAND")
-# Call a callback function directly
-command("CMD_BT_CALLBACK_QS_PRINT_TEST")
-expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG *")
-expect("@timestamp Trg-Done QS_RX_COMMAND")

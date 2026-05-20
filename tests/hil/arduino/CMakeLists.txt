@@ -328,15 +328,26 @@ target_compile_definitions(qp-arduino-port INTERFACE
 #         "${TESTS_DIR}/hil/arduino/sequencer_test/sequencer_test.py"
 # )
 
-add_hil_test(bluetooth_test "bluetooth_test"
-    "platform-arduino;qp-headers;hal-api"
+# add_hil_test(bluetooth_test "bluetooth_test"
+#     "platform-arduino;qp-headers;hal-api"
+#
+#     EXTRA_SRCS
+#         "${TESTS_DIR}/hil/arduino/bluetooth_test/callbacks/bluetooth_callbacks.cpp"
+#
+#     EXTRA_INCLUDES
+#         "${TESTS_DIR}/hil/arduino/bluetooth_test/callbacks"
+#
+#     TEST_SCRIPTS
+#         "${TESTS_DIR}/hil/arduino/bluetooth_test/bluetooth_test.py"
+# )
+
+add_hil_test(bluetooth_test_esp "bluetooth_test"
+    "platform-bsp-api;platform-esp32;qp-headers;hal-api"
 
     EXTRA_SRCS
-        "${TESTS_DIR}/hil/arduino/bluetooth_test/callbacks/bluetooth_callbacks.cpp"
 
     EXTRA_INCLUDES
-        "${TESTS_DIR}/hil/arduino/bluetooth_test/callbacks"
 
     TEST_SCRIPTS
-        "${TESTS_DIR}/hil/arduino/bluetooth_test/bluetooth_test.py"
+    "${TESTS_DIR}/hil/arduino/bluetooth_test/bluetooth_test.py"
 )

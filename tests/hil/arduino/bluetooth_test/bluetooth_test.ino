@@ -1,15 +1,9 @@
 ///*****************************************************************************
-/// Outside-in TDD of Bluetooth on hardware using NimBLE-Arduino
+/// Outside-in TDD of Bluetooth on hardware using esp-idf api AND arduino framework
 ///-----------------------------------------------------------------------------
-/// Plan:
-/// -----
-///  1. Test real observable behaviour using real bluetooth api directly without
-///  developing for "portable" design, on real hardware.
-///     - BLE code written directly in commands.
-///  2. Refactor/Build using real production api "bluetooth.h".
-///     - BLE code in commands refactored to call portable Bluetooth api.
-///  3. Traditional TDD unit test the Bluetooth api.
-///     - Test the BluetoothAO or the Bluetooth
+/// HIL tests using esp-idf api for platform specific stuff and nimle api for
+/// bluetooth. For the rest of the code, arduino framework is used to keep things
+/// simpler and i was lazy to implement a setup for idf alone.
 ///
 /// BLE Test Fixture Overview:
 /// --------------------------
@@ -34,25 +28,23 @@
 ///*****************************************************************************
 
 #include <Arduino.h>
-#include <NimBLEDevice.h>
-#include <NimBLEBeacon.h>
-#include "bluetooth_callbacks.hpp"
+
+#define CORE_DEBUG_LEVEL 0 // ARDUINO-ESP: stop any logging
+
+#include "esp_err.h"
+#include "esp_log.h"
 
 extern "C" {
 #include "qpc.h"
 #include "qs_pkg.h"
-#include "bluetooth.h"
+#include "bluetooth_esp.h"
+#include "BSP_esp.h"
 }
 
 Q_DEFINE_THIS_FILE
 
 extern "C" char const Q_BUILD_DATE[] = __DATE__;
 extern "C" char const Q_BUILD_TIME[] = __TIME__;
-
-static NimBLEAdvertising* pAdvertising = nullptr;
-static NimBLEServer* pServer = nullptr;
-static NimBLEService* pDeadService = nullptr;
-static NimBLEService* pBaadService = nullptr;
 
 static char* characteristicKey = "BEEF";
 
@@ -79,54 +71,12 @@ enum {
 
 enum {
     HIL_TEST_SIG = QS_USER,
+    BLUETOOTH_CALLBACK_TEST_SIG,
 };
-
-static void resetFixtureState(void) {
-    if (NimBLEDevice::isInitialized()) {
-        // Stop advertising first
-        if (pAdvertising != nullptr) {
-            if (pAdvertising->isAdvertising()) {
-                bool val = pAdvertising->stop();
-                Q_ASSERT(val == 1);
-                pAdvertising->reset();
-            }
-            pAdvertising = nullptr;
-        }
-
-        // Disconnect all clients if server exists
-        if (pServer != nullptr) {
-            uint16_t connIds[CONFIG_BT_NIMBLE_MAX_CONNECTIONS];
-            size_t count = pServer->getConnectedCount();
-
-            for (size_t i = 0; i < count; ++i) {
-                connIds[i] = pServer->getPeerInfo(i).getConnHandle();
-            }
-
-            for (size_t i = 0; i < count; ++i) {
-                pServer->disconnect(connIds[i]);
-            }
-        }
-        Q_ASSERT(NimBLEDevice::getConnectedClients().size() == 0);
-
-        // Clear service pointers
-        pDeadService = nullptr;
-        pBaadService = nullptr;
-        pServer = nullptr;
-
-        // Fully shutdown NimBLE stack
-        NimBLEDevice::deinit(true);
-        delay(10); // let the host know the device has been disconnected; to allow safer reconnections.
-    }
-    else {
-        pAdvertising = nullptr;
-        pDeadService = nullptr;
-        pBaadService = nullptr;
-        pServer = nullptr;
-    }
-}
 
 static void QS_userDictionaries(void) {
     QS_USR_DICTIONARY(HIL_TEST_SIG);
+    QS_USR_DICTIONARY(BLUETOOTH_ESP_TEST_SIG);
     QS_USR_DICTIONARY(BLUETOOTH_CALLBACK_TEST_SIG);
 
     // allows referencing the commands by strings in test script
@@ -158,7 +108,16 @@ static void run_test_fixture() {
     QS_TEST_PAUSE();
 }
 
+static BluetoothConfig espBluetoothConfig = {
+    .device_name = "RepHIL-Server",
+    .mtu = 500,
+};
+
 void setup() {
+    // initialize hardware.
+    bool success = espBspInterface.BSP_init();
+    Q_ASSERT(success);
+
     pinMode(LED_BUILTIN, OUTPUT);
 
     run_test_fixture();
@@ -174,9 +133,9 @@ void loop() {
 
     while (1) {
         digitalWrite(LED_BUILTIN, HIGH);
-        delay(300);
+        delay(1000);
         digitalWrite(LED_BUILTIN, LOW);
-        delay(300);
+        delay(1000);
     }
 }
 
@@ -201,112 +160,58 @@ void QS_onCommand(uint8_t cmdId,
 
         case CMD_BT_INIT:
             {
-                NimBLEDevice::init("RepHIL");
-                NimBLEDevice::setMTU(500);
-                pServer = NimBLEDevice::createServer();
-                pServer->setCallbacks(&serverCallbacks);
+                bool success = espBluetoothInterface.init(&espBluetoothConfig);
 
-                if (NimBLEDevice::isInitialized()) {
-                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                        QS_STR("INIT");
-                    QS_END();
-                }
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR( success ? "INIT" : "INIT FAILED");
+                QS_END();
 
                 break;
             }
 
         case CMD_BT_PROF:
             {
-                // create 2 services
-                pDeadService = pServer->createService("DEAD");
-                pBaadService = pServer->createService("BAAD");
-
-                // ---- pDead Service ------------------------------------------
-                NimBLECharacteristic* pDeadChar = pDeadService->createCharacteristic(
-                    characteristicKey,
-                    NIMBLE_PROPERTY::READ |
-                    NIMBLE_PROPERTY::WRITE |
-                    NIMBLE_PROPERTY::NOTIFY
-                );
-
-                pDeadChar->setCallbacks(&chrCallbacks);
-                pDeadChar->setValue("INIT");
-                // create descriptor
-                NimBLE2904* pDead2904 = pDeadChar->create2904();
-                pDead2904->setFormat(NimBLE2904::FORMAT_UTF8);
-                pDead2904->setCallbacks(&dscCallbacks);
-
-                pDeadService->start();
-
-                // ---- pBaad Service ------------------------------------------
-                pBaadService->start();
-
-                // ---- Setup Advertising --------------------------------------
-                pAdvertising = NimBLEDevice::getAdvertising();
-                pAdvertising->addServiceUUID(pDeadService->getUUID());
-                pAdvertising->addServiceUUID(pBaadService->getUUID());
-                pAdvertising->enableScanResponse(true);
-                pAdvertising->setPreferredParams(0x06, 0x12);
-                pAdvertising->setName("RepHIL-Server");
+                bool success = espBluetoothInterface.setup_profile();
 
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                    QS_STR("P");
+                    QS_STR(success ? "P" : "~P");
                 QS_END();
                 break;
             }
 
         case CMD_BT_START_ADV:
             {
-                Q_ASSERT(pAdvertising);
-
-                if (pAdvertising->start()) {
-                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                        QS_STR("ADV1");
-                    QS_END();
-                }
+                bool success = espBluetoothInterface.start_advertising();
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR( success ? "ADV1" : "Start Failed");
+                QS_END();
 
                 break;
             }
 
         case CMD_BT_STOP_ADV:
             {
-                Q_ASSERT(pAdvertising);
-
-                if (pAdvertising->stop()) {
-                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                        QS_STR("ADV0");
-                    QS_END();
-                }
+                bool success = espBluetoothInterface.stop_advertising();
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR( success ? "ADV0" : "Stop Failed");
+                QS_END();
 
                 break;
             }
 
         case CMD_BT_NOTIFY:
             {
-                Q_ASSERT(pAdvertising);
-                Q_ASSERT(pDeadService);
-
-                NimBLECharacteristic* pChar = pDeadService->getCharacteristic(characteristicKey);
-                if (pChar) {
-                    char buf[10];
-                    snprintf(buf, sizeof(buf), "V:%u", (unsigned int)param1);
-                    pChar->setValue(buf);
-                    bool ok = pChar->notify();
-
-                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                        QS_STR(ok ? "NOTIFY_OK" : "NOTIFY_FAIL");
-                    QS_END();
-                }
-
+                bool success = espBluetoothInterface.notify(param1);
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR(success ? "NOTIFY_OK" : "NOTIFY_FAIL");
+                QS_END();
                 break;
             }
 
         case CMD_BT_ADV_PRINT_STATUS:
             {
-                Q_ASSERT(pAdvertising);
-
                 bool is_adv = false;
-                is_adv = pAdvertising->isAdvertising();
+                is_adv = espBluetoothInterface.is_advertising();
 
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR(is_adv ? "ADV" : "IDL");
@@ -316,27 +221,19 @@ void QS_onCommand(uint8_t cmdId,
 
         case CMD_BT_SET_MTU:
             {
-                // Q_ASSERT a device is connected
-                Q_ASSERT(pServer);
-                Q_ASSERT(param1 <= BLE_ATT_MTU_MAX && param1 > 23);
+                bool success = espBluetoothInterface.set_preferred_mtu(param1);
+                if (!success) {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("MTU Command failed");
+                    QS_END();
 
-                bool ret = NimBLEDevice::setMTU(param1);
-                Q_ASSERT(ret == 1);
+                }
                 break;
-
             }
 
         case CMD_BT_SET_VALUE:
             {
-                Q_ASSERT(pDeadService);
-                NimBLECharacteristic* pChar = pDeadService->getCharacteristic(characteristicKey);
-
-                Q_ASSERT(pChar);
-
-                char buf[16];
-                snprintf(buf, sizeof(buf), "V:%u", (unsigned)param1);
-
-                pChar->setValue(buf);
+                espBluetoothInterface.set_value(param1);
 
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR("SETVAL");
@@ -344,38 +241,14 @@ void QS_onCommand(uint8_t cmdId,
 
                 break;
             }
-
-            // =============================================================================
-
-        case CMD_BT_CALLBACK_QS_PRINT_TEST:
-            {
-                Q_ASSERT(pServer);
-                Q_ASSERT(pAdvertising);
-                Q_ASSERT(pDeadService);
-
-                NimBLECharacteristic* pDeadChar = pDeadService->createCharacteristic(
-                    characteristicKey,
-                    NIMBLE_PROPERTY::READ |
-                    NIMBLE_PROPERTY::WRITE |
-                    NIMBLE_PROPERTY::NOTIFY
-                );
-
-                pDeadChar->setCallbacks(&chrCallbacks);
-                pDeadChar->setValue("INIT");
-                pDeadService->start();
-                pBaadService->start();
-
-                // call the callback explicilty
-                chrCallbacks.onStatus(pDeadChar, 42);
-
-                break;
-            }
-
         case CMD_GET_BT_ADDRESS:
             {
-                NimBLEAddress addr = NimBLEDevice::getAddress();
+                char addr[18];
+
+                espBluetoothInterface.get_address(addr, sizeof(addr));
+
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                    QS_STR(addr.toString().c_str());
+                    QS_STR(addr);
                 QS_END();
 
                 break;
