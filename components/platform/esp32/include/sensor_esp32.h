@@ -9,8 +9,6 @@ extern "C" {
 #include "i2c.h"
 #include "qpc.h"
 
-#define esp32SensorInteface arduinoSensorInteface
-
 enum {
 	SENSOR_TEST_SIG = QS_USER1 + 1,
 };
@@ -33,7 +31,7 @@ uint32_t Spy_getIsrCount(void);
 void Spy_resetIsrCount(void);
 void mpu6050_DICTIONARY(void);
 
-extern SensorInterface esp32SensorInteface;
+extern SensorInterface espSensorInterface;
 
 #ifdef __cplusplus
 }

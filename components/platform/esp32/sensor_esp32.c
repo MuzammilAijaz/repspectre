@@ -266,7 +266,7 @@ static Axis3f* mpu6050_fifo_stub(void)
     return NULL;
 }
 
-SensorInterface arduinoSensorInteface = {
+SensorInterface espSensorInterface = {
     .Sensor_init = mpu6050_init_adapter,
     .Sensor_GetFifo = mpu6050_fifo_stub,
     .Sensor_readGyro = mpu6050_readGyro_adapter,

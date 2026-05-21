@@ -15,14 +15,14 @@
 extern "C" {
 #include "i2c.h"
 #define ARDUINO_ESP 1
-// FIXME: define doesnt enable the ifdef!!! @see mpu6050.h
 #define MPU6050_INCLUDE_DMP_MOTIONAPPS20 1 // NOTE: required for enabling DMP!!!
-// FIXME: define enable doesnt work; perhaps due to arduino build structure.
 #define MPU6500
 #include "mpu6050.h"
-#include "sensor_esp32.h"
 #include "qpc.h"
+
+#include "sensor_esp32.h"
 #include "i2c_config_esp32.h"
+
 }
 
 Q_DEFINE_THIS_FILE
@@ -114,6 +114,7 @@ void QS_onCommand(uint8_t cmdId,
             {
                 // platform implementation for arduino
                 // setSensorBusDef(&arduinoSensorBusDef);
+
                 // platform implementation for esp32
                 setSensorBusDef(&esp32SensorBusDef);
                 i2cdrvInit(&sensorsBus);
@@ -128,7 +129,8 @@ void QS_onCommand(uint8_t cmdId,
 
                 // Spy_setMpuIsrSemaphore(&mpuIsrSem);
 
-                SensorStatus status = arduinoSensorInteface.Sensor_init(config);
+                // SensorStatus status = arduinoSensorInteface.Sensor_init(config);
+                SensorStatus status = espSensorInterface.Sensor_init(config);
                 if (status == ERR_DMP_FIRMWARE) {
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                         QS_STR("MPU6050 DMP Firmware Upload Failed");
@@ -153,7 +155,7 @@ void QS_onCommand(uint8_t cmdId,
                 gyro.y = 0.0f;
                 gyro.z = 0.0f;
                 // noInterrupts();
-                arduinoSensorInteface.Sensor_readAcc(&gyro);
+                espSensorInterface.Sensor_readAcc(&gyro);
                 // interrupts();
                 if (gyro.x == 0.0f) {
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
@@ -230,7 +232,7 @@ void QS_onCommand(uint8_t cmdId,
             }
         case 9U:
             {
-                setSensorBusDef(&arduinoSensorBusDef);
+                setSensorBusDef(&esp32SensorBusDef);
                 Spy_setI2cDriver(&sensorsBus); // not required
                 i2cdrvInit(&sensorsBus);
                 mpu6050Init(&sensorsBus); // not required

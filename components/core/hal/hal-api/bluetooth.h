@@ -6,15 +6,16 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stddef.h> // for size_t
 #include <stdbool.h>
 
 typedef struct {
-    const char* device_name; // null terminated
-    const int mtu;
+    char* device_name; // null terminated
+    int mtu;
 } BluetoothConfig;
 
 typedef struct {
-    bool (*init)(const BluetoothConfig* config);
+    bool (*init)(BluetoothConfig config);
     bool (*setup_profile)(void);
     bool (*start_advertising)(void);
     bool (*stop_advertising)(void);

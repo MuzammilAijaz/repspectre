@@ -213,7 +213,7 @@ static void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg)
     /* Registration lifecycle verification callback pointer */
 }
 
-static bool Bluetooth_init_adapter(const BluetoothConfig* config) {
+static bool Bluetooth_init_adapter(BluetoothConfig config) {
     if (is_initialized) return true;
 
 #ifdef CONFIG_IDF_TARGET_ESP32
@@ -236,10 +236,10 @@ static bool Bluetooth_init_adapter(const BluetoothConfig* config) {
     // ---- Configure ----------------------------------------------
 #if CONFIG_BT_NIMBLE_GAP_SERVICE
     /* Set the default device name. */
-    rc = ble_svc_gap_device_name_set(config->device_name);
+    rc = ble_svc_gap_device_name_set(config.device_name);
     if (rc != 0) return false;
 #endif
-    rc = ble_att_set_preferred_mtu(config->mtu);
+    rc = ble_att_set_preferred_mtu(config.mtu);
     if (rc != 0) return false;
 
     is_initialized = true;

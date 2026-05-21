@@ -7,8 +7,6 @@ extern "C" {
 
 #include "i2c.h"
 
-#define esp32SensorBusDef arduinoSensorBusDef
-
 // HACK: REMOVE THIS ---------
 #define CONFIG_I2C0_PIN_SCL 4
 #define CONFIG_I2C0_PIN_SDA 5

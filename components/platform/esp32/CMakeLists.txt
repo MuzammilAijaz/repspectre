@@ -26,6 +26,9 @@ target_link_libraries(platform-esp32
 	qp-headers
 	freertos
 
+	i2c
+	platform-api
 	platform-bsp-api
 	hal-api
+	i2cdev-mpu6050
 )
