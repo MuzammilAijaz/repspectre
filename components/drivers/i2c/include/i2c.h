@@ -30,11 +30,15 @@ typedef enum {
     DRV_I2C_READ
 } I2cDirection;
 
+#if defined(ARDUINO_ARCH_ESP32) || defined(ESP_PLATFORM)
+#include "driver/i2c.h"
+#else
 // RESEARCH: does this interface require HIGH and LOW power i2c lines?
 typedef enum {
     I2C_NUM_0 = 0,              /*!< I2C port 0 */
     I2C_NUM_1 = 1,              /*!< I2C port 1 */
 } i2c_port_t;
+#endif
 
 typedef struct {
     i2c_port_t          i2cPort;
@@ -138,4 +142,3 @@ void i2cdrvDeInitBus(I2cDrv *i2c);
 #endif
 
 #endif
-

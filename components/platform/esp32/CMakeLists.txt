@@ -1,6 +1,6 @@
 
 # TODO: add esp idf platform headers/source files
-# NOTE: This would compile for now, as the esp idf apii is being included from the 
+# NOTE: This would compile for now, as the esp idf apii is being included from the
 # arduino framework espcore
 
 add_library(platform-esp32 INTERFACE)
@@ -8,6 +8,9 @@ add_library(platform-esp32 INTERFACE)
 target_sources(platform-esp32 INTERFACE
 	BSP_esp.c
 	bluetooth_esp.c
+	i2c_esp32.c
+	i2cdev_esp32.c
+	sensor_esp32.c
 )
 
 target_include_directories(platform-esp32

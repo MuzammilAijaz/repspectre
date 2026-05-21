@@ -14,15 +14,15 @@
 
 extern "C" {
 #include "i2c.h"
-#define ARDUINO_ESP
+#define ARDUINO_ESP 1
 // FIXME: define doesnt enable the ifdef!!! @see mpu6050.h
-#define MPU6050_INCLUDE_DMP_MOTIONAPPS20 // NOTE: required for enabling DMP!!!
+#define MPU6050_INCLUDE_DMP_MOTIONAPPS20 1 // NOTE: required for enabling DMP!!!
 // FIXME: define enable doesnt work; perhaps due to arduino build structure.
 #define MPU6500
 #include "mpu6050.h"
-#include "sensor_arduino.h"
+#include "sensor_esp32.h"
 #include "qpc.h"
-#include "i2c_config_arduino.h"
+#include "i2c_config_esp32.h"
 }
 
 Q_DEFINE_THIS_FILE
@@ -113,7 +113,9 @@ void QS_onCommand(uint8_t cmdId,
         case 1U:
             {
                 // platform implementation for arduino
-                setSensorBusDef(&arduinoSensorBusDef);
+                // setSensorBusDef(&arduinoSensorBusDef);
+                // platform implementation for esp32
+                setSensorBusDef(&esp32SensorBusDef);
                 i2cdrvInit(&sensorsBus);
 
                 SensorConfig config = {

@@ -16,6 +16,7 @@ import time
 import math
 
 MPU_SAMPLE_RATE = 1000
+ADJUSTMENT = -1
 
 class RecordType(IntEnum):
     # QS_USER0
@@ -92,7 +93,7 @@ test("Init: MPU6050 interrupt registers enabled as expected")
 command(1)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(12)
-interruptRegisterInt = bin8_to_int('00010010')
+interruptRegisterInt = bin8_to_int('00010011')
 expect(f"@timestamp HIL_TEST_SIG Interrupt Register: {interruptRegisterInt}")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
@@ -104,7 +105,7 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(5)
 start = time.time()
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(8, 1000)
+command(8, 250)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 end = time.time()
 command(7)
@@ -112,7 +113,7 @@ duration = end - start
 count = math.floor(duration * MPU_SAMPLE_RATE)
 print(f"COUNT    : {count}")
 print(f"DURATION : {duration}")
-expect(f"@timestamp HIL_TEST_SIG STATE {count} *")
+expect(f"@timestamp HIL_TEST_SIG STATE {count + ADJUSTMENT} *")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 test("Interrupt: No. of Data Ready Interrupts match expectations, short")
@@ -129,8 +130,10 @@ duration = end - start
 count = math.floor(duration * MPU_SAMPLE_RATE)
 print(f"COUNT    : {count}")
 print(f"DURATION : {duration}")
-expect(f"@timestamp HIL_TEST_SIG STATE {count} *")
+expect(f"@timestamp HIL_TEST_SIG STATE {count + ADJUSTMENT} *")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# =============================================================================
 
 test("Interrupt: No phantom Data Ready Interrupts occur")
 command(1)

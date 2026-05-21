@@ -1,8 +1,25 @@
-#include "i2c.h"
+#include <stdbool.h>
 
-void i2cdrvInitBus(I2cDrv *i2c)
+#include "FreeRTOS.h"
+#include "qsafe.h"
+#include "semphr.h"
+
+#include "driver/i2c.h"
+#include "esp_err.h"
+
+#include "debug_cf.h"
+#include "i2c.h"
+#include "qpc.h"
+
+Q_DEFINE_THIS_MODULE("I2cDev-Esp32");
+
+static bool isInit_i2cport[I2C_DEFAULT_I2C_MAX_PORTS] = { false, false };
+
+void i2cdrvInitBus(I2cDrv *i2c) 
 {
-    if (isinit_i2cPort[i2c->def->i2cPort]) {
+    Q_ASSERT(i2c != NULL || i2c->def != NULL);
+
+    if (isInit_i2cport[i2c->def->i2cPort]) {
         return;
     }
 
@@ -21,5 +38,22 @@ void i2cdrvInitBus(I2cDrv *i2c)
 
     DEBUG_PRINTI(" i2c %d driver install return = %d", i2c->def->i2cPort, err);
     i2c->isBusFreeMutex = xSemaphoreCreateMutex();
-    isinit_i2cPort[i2c->def->i2cPort] = true;
+    isInit_i2cport[i2c->def->i2cPort] = true;
+}
+
+void i2cdrvDeInitBus(I2cDrv *i2c)
+{
+    Q_ASSERT(i2c != NULL || i2c->def != NULL);
+
+    if (!isInit_i2cport[i2c->def->i2cPort]) {
+        return;
+    }
+
+    (void)i2c_driver_delete(i2c->def->i2cPort);
+    isInit_i2cport[i2c->def->i2cPort] = false;
+
+    if (i2c->isBusFreeMutex != NULL) {
+        vSemaphoreDelete(i2c->isBusFreeMutex);
+        i2c->isBusFreeMutex = NULL;
+    }
 }

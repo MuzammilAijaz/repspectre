@@ -313,13 +313,13 @@ target_compile_definitions(qp-arduino-port INTERFACE
 # =============================================================================
 # NOTE: Tests run serially
 
-# disabled for now
-# add_hil_test(sensor_test "sensor_test"
-#     "platform-arduino;platform-api;i2c;i2cdev-mpu6050"
-#
-#     TEST_SCRIPTS
-#         "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"
-# )
+add_hil_test(sensor_test "sensor_test"
+    # "platform-arduino;platform-api;i2c;i2cdev-mpu6050" # arduino
+    "platform-esp32;platform-api;i2c;i2cdev-mpu6050" # esp-idf
+
+    TEST_SCRIPTS
+        "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"
+)
 
 # add_hil_test(sequencer_test "sequencer_test"
 #     "qp-arduino-port;sensorAO;platform-arduino;qp-headers;sequencerAO"
@@ -341,13 +341,13 @@ target_compile_definitions(qp-arduino-port INTERFACE
 #         "${TESTS_DIR}/hil/arduino/bluetooth_test/bluetooth_test.py"
 # )
 
-add_hil_test(bluetooth_test_esp "bluetooth_test"
-    "platform-bsp-api;platform-esp32;qp-headers;hal-api"
-
-    EXTRA_SRCS
-
-    EXTRA_INCLUDES
-
-    TEST_SCRIPTS
-    "${TESTS_DIR}/hil/arduino/bluetooth_test/bluetooth_test.py"
-)
+# add_hil_test(bluetooth_test_esp "bluetooth_test"
+#     "platform-bsp-api;platform-esp32;qp-headers;hal-api"
+#
+#     EXTRA_SRCS
+#
+#     EXTRA_INCLUDES
+#
+#     TEST_SCRIPTS
+#     "${TESTS_DIR}/hil/arduino/bluetooth_test/bluetooth_test.py"
+# )

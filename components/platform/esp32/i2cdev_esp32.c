@@ -24,14 +24,18 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "task.h"
 #include "queue.h"
 
-#include "i2cdev_i2c.h"
-#include "i2c.h"
+#include "driver/i2c.h"
+#include "esp_err.h"
+
+#include "debug_cf.h"
+#include "i2cdev.h"
 
 int i2cdevInit(I2C_Dev *dev)
 {
@@ -127,7 +131,7 @@ bool i2cdevReadReg8(I2C_Dev *dev, uint8_t devAddress, uint8_t memAddress,
 #endif
 
     if (err == ESP_OK) {
-        return TRUE;
+        return true;
     } else {
         return false;
     }
@@ -186,7 +190,7 @@ bool i2cdevReadReg16(I2C_Dev *dev, uint8_t devAddress, uint16_t memAddress,
 #endif
 
     if (err == ESP_OK) {
-        return TRUE;
+        return true;
     } else {
         return false;
     }
@@ -275,7 +279,7 @@ bool i2cdevWriteReg8(I2C_Dev *dev, uint8_t devAddress, uint8_t memAddress,
 #endif
 
     if (err == ESP_OK) {
-        return TRUE;
+        return true;
     } else {
         return false;
     }
@@ -332,7 +336,7 @@ bool i2cdevWriteReg16(I2C_Dev *dev, uint8_t devAddress, uint16_t memAddress,
 #endif
 
     if (err == ESP_OK) {
-        return TRUE;
+        return true;
     } else {
         return false;
     }
