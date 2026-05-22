@@ -513,7 +513,8 @@ def _arduino_cli_compile(
     extra_includes_flags = " ".join(f"-I{inc}" for inc in extra_includes)
     staged_includes_flags = " ".join(f"-I{inc}" for inc in include_dirs)
     all_extra_includes = f"-I{qpc_include_dir} -I{port_dir} {extra_includes_flags} {staged_includes_flags}"
-    defs = f"-DQ_SPY -DQ_UTEST=1 {extra_defines}".strip()
+    # add -g3 for debug symbols and -Og for better debugging experience if possible via build.optimization_flags
+    defs = f"-DQ_SPY -DQ_UTEST=1 -g3 {extra_defines}".strip()
 
     # NOTE: build properties are core-specific, but these work for common cores.
     cmd = [
@@ -525,6 +526,8 @@ def _arduino_cli_compile(
         str(build_path),
         "--output-dir",
         str(output_dir),
+        "--build-property",
+        "build.optimization_flags=-Og",
         "--build-property",
         f"compiler.cpp.extra_flags={defs} {all_extra_includes}",
         "--build-property",
