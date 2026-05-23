@@ -9,6 +9,11 @@ extern "C" {
 #include "qpc.h"
 #include "bluetooth.h"
 
+typedef enum {
+    BLUETOOTH_OK,
+    ERR_INIT,
+} BluetoothStatus;
+
 typedef struct {
     QEvt super;
     BluetoothConfig config;

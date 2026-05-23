@@ -18,6 +18,7 @@ target_link_libraries(bluetoothAO
     qp-headers
 
     module-api
+    hal-api
 )
 
 # Optional: alias (future-proof naming)

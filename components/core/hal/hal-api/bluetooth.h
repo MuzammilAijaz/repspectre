@@ -10,7 +10,7 @@ extern "C" {
 #include <stdbool.h>
 
 typedef struct {
-    char* device_name; // null terminated
+    const char* device_name; // null-terminated string owned by caller
     int mtu;
 } BluetoothConfig;
 

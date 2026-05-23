@@ -9,6 +9,7 @@
 
 #include "sensorAO.h"
 #include "bluetoothAO.h"
+#include "bluetooth.h"
 
 Q_DEFINE_THIS_MODULE("SequencerAO")
 
@@ -21,7 +22,9 @@ typedef struct {
 
     BspInterface* bsp; // NOTE: pointer; for clear ownership
     BspError_t bspStatus;
+
     const char* bluetoothDeviceName;
+    int mtu;
 } SequencerAO;
 
 static QState SequencerAO_initial(SequencerAO *me, void const * par);
@@ -41,7 +44,8 @@ void SequencerAO_ctor(const BspInterface * const bsp) {
 
     QActive_ctor(&m_instance.super, Q_STATE_CAST(SequencerAO_initial));
     m_instance.bsp = bsp;
-    m_instance.bluetoothDeviceName = "dev";
+    m_instance.bluetoothDeviceName = "dev"; // CAUTION: may cause problems, if low level bluetooth stack hold on to this.
+    m_instance.mtu = 500;
 
     g_sequencerAO = &m_instance.super;
 }
@@ -97,11 +101,8 @@ QState SequencerAO_booting(SequencerAO * me, const QEvt* e) {
                 // Start Bluetooth
                 BluetoothAOInitializeRequestEvent * const bluetoothEvt =
                     Q_NEW(BluetoothAOInitializeRequestEvent, INITIALIZE_BLUETOOTH_SIG);
-
-                // TODO: move config out.
-                bluetoothEvt->config = (BluetoothConfig) {
-                    .device_name = me->bluetoothDeviceName,
-                };
+                bluetoothEvt->config.device_name = me->bluetoothDeviceName;
+                bluetoothEvt->config.mtu = me->mtu;
 
                 QACTIVE_POST(g_bluetoothAO, &bluetoothEvt->super, me);
 
