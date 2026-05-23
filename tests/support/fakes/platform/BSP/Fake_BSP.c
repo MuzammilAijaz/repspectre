@@ -19,7 +19,11 @@ int Fake_BSP_init(void) {
 	return initShouldPass;
 }
 
+void Fake_BSP_configureI2cBus(void) {
+
+}
 
 BspInterface FakeBSPinterface= {
 	.BSP_init = Fake_BSP_init,
+	.BSP_configureI2cBus = Fake_BSP_configureI2cBus,
 };
