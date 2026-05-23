@@ -1,10 +1,19 @@
 #include "BSP_esp.h"
 
+#include "qpc.h"
+
 #include "nvs_flash.h"
 #include "esp_err.h"
 #include "esp_log.h"
 
+#include "qsafe.h"
 #include "soc/soc_caps.h" // for SOC_BT_SUPPORTED
+
+#include "i2c_config_esp32.h"
+#include "i2c.h"
+
+Q_DEFINE_THIS_MODULE("BSPEsp32")
+
 // for btStarted()
 # if defined(ESP_PLATFORM) && defined(CONFIG_ENABLE_ARDUINO_DEPENDS)
 #  include "esp32-hal-bt.h"
@@ -18,8 +27,9 @@ static const char *TAG = "BSP_ESP";
 // ==== Override ===============================================================
 
 static void BSP_configureI2cBus_stub(void) {
-    // Left as placeholder for your native ESP32 I2C Master drivers if required
-    // ESP_LOGI(TAG, "I2C Bus hardware rails configured natively.");
+    setSensorBusDef(&esp32SensorBusDef);
+    Q_ASSERT(sensorsBus.def != NULL);
+    i2cdrvInit(&sensorsBus);
 }
 
 static int BSP_init_adapter(void) {
