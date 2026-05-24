@@ -11,6 +11,7 @@ extern "C" {
 
 typedef enum {
     BLUETOOTH_OK,
+    ERR_BLUETOOTH_ADV_START,
     ERR_INIT,
 } BluetoothStatus;
 

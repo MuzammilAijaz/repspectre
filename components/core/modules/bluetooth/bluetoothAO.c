@@ -51,6 +51,8 @@ QState BluetoothAO_initial(BluetoothAO * const me, void const * const par) {
     return Q_TRAN(&BluetoothAO_uninitialized);
 }
 
+// =============================================================================
+
 QState BluetoothAO_uninitialized(BluetoothAO * me, const QEvt* e) {
     QState rtn;
 
@@ -92,6 +94,8 @@ QState BluetoothAO_uninitialized(BluetoothAO * me, const QEvt* e) {
     return rtn;
 }
 
+// =============================================================================
+
 QState BluetoothAO_initialized(BluetoothAO * me, const QEvt* e) {
     static const QEvt bluetoothInitialized = QEVT_INITIALIZER(BLUETOOTH_INITIALIZED_SIG);
 
@@ -107,7 +111,15 @@ QState BluetoothAO_initialized(BluetoothAO * me, const QEvt* e) {
         }
 
         case START_ADVERTISEMENT_SIG: {
-            rtn = Q_TRAN(&BluetoothAO_advertising);
+            bool success = me->bluetooth->start_advertising();
+
+            if (!success) {
+                me->status = ERR_BLUETOOTH_ADV_START;
+                rtn = Q_TRAN(&BluetoothAO_error);
+            }
+            else {
+                rtn = Q_TRAN(&BluetoothAO_advertising);
+            }
             break;
         }
 
@@ -126,13 +138,12 @@ QState BluetoothAO_advertising(BluetoothAO * me, const QEvt* e) {
     switch (e->sig) {
 
         case Q_ENTRY_SIG: {
-            me->bluetooth->start_advertising();
             rtn = Q_HANDLED();
             break;
         }
 
         default: {
-            rtn = Q_SUPER(&QHsm_top);
+            rtn = Q_SUPER(&BluetoothAO_initialized); // PARENT
             break;
         }
     }
@@ -140,9 +151,12 @@ QState BluetoothAO_advertising(BluetoothAO * me, const QEvt* e) {
     return rtn;
 }
 
+// =============================================================================
+
 QState BluetoothAO_error(BluetoothAO * me, const QEvt* e) {
 
     static const QEvt bluetoothInitError = QEVT_INITIALIZER(ERROR_BLUETOOTH_INIT);
+    static const QEvt bluetoothAdvError = QEVT_INITIALIZER(ERROR_BLUETOOTH_ADV);
 
     QState rtn;
 
@@ -151,6 +165,9 @@ QState BluetoothAO_error(BluetoothAO * me, const QEvt* e) {
         case Q_ENTRY_SIG: {
             if (me->status == ERR_INIT) {
                 QF_PUBLISH(&bluetoothInitError, &me->super);
+            }
+            if (me->status == ERR_BLUETOOTH_ADV_START) {
+                QF_PUBLISH(&bluetoothAdvError, &me->super);
             }
 
             rtn = Q_HANDLED();
