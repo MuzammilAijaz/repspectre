@@ -118,6 +118,9 @@ TEST(BluetoothAOGroup, GivenValidBluetoothConfig_WhenInitializeBluetoothCalled_T
         .withParameter("mtu", validConfig.mtu)
         .andReturnValue(true); // Assuming initialization succeeds
 
+    mock().expectOneCall("bluetooth_setup_profile")
+        .andReturnValue(true);
+
     startAOUnderTest();
 
     auto* e = Q_NEW(BluetoothAOInitializeRequestEvent, INITIALIZE_BLUETOOTH_SIG);
@@ -128,13 +131,14 @@ TEST(BluetoothAOGroup, GivenValidBluetoothConfig_WhenInitializeBluetoothCalled_T
     auto event = checkRecordedEventSignal(BLUETOOTH_INITIALIZED_SIG);
 }
 
-TEST(BluetoothAOGroup, GivenInvalidBluetoothConfig_WhenInitializeBluetoothCalled_ThenMoveToErrorState) {
+TEST(BluetoothAOGroup, GivenInitFailed_WhenInitializeBluetoothCalled_ThenMoveToErrorState) {
     using namespace cms::test;
 
     mock().expectOneCall("bluetooth_init")
         .withParameter("device_name", validConfig.device_name)
         .withParameter("mtu", validConfig.mtu)
-        .andReturnValue(false); // Assuming initialization succeeds
+        .andReturnValue(false);
+    // does not call the setup_profile
 
     startAOUnderTest();
 
@@ -143,13 +147,13 @@ TEST(BluetoothAOGroup, GivenInvalidBluetoothConfig_WhenInitializeBluetoothCalled
 
     qf_ctrl::PublishAndProcess(&e->super, mRecorder);
 
-    auto event = checkRecordedEventSignal(ERROR_BLUETOOTH_INIT);
+    checkRecordedEventSignal(ERROR_BLUETOOTH_INIT);
 }
 // =============================================================================
 // | Domain Logic
 // =============================================================================
 
 // =============================================================================
-// | Error Handling
+// | Failure Handling
 // =============================================================================
 

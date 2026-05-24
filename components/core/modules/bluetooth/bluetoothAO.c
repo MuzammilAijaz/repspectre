@@ -22,6 +22,7 @@ static QState BluetoothAO_initial(BluetoothAO *me, void const * par);
 QState BluetoothAO_uninitialized(BluetoothAO * me, const QEvt* e);
 QState BluetoothAO_initialized(BluetoothAO * me, const QEvt* e);
 QState BluetoothAO_error(BluetoothAO * me, const QEvt* e);
+QState BluetoothAO_advertising(BluetoothAO * me, const QEvt* e);
 
 static BluetoothAO m_instance; // private member variable
 
@@ -45,6 +46,7 @@ QState BluetoothAO_initial(BluetoothAO * const me, void const * const par) {
     Q_UNUSED_PAR(par);
 
     QActive_subscribe(&me->super, INITIALIZE_BLUETOOTH_SIG);
+    QActive_subscribe(&me->super, START_ADVERTISEMENT_SIG);
 
     return Q_TRAN(&BluetoothAO_uninitialized);
 }
@@ -63,7 +65,13 @@ QState BluetoothAO_uninitialized(BluetoothAO * me, const QEvt* e) {
             const BluetoothAOInitializeRequestEvent * const event =
                 (const BluetoothAOInitializeRequestEvent *) e;
 
-            bool success = me->bluetooth->init(event->config);
+            bool success;
+
+            success = me->bluetooth->init(event->config);
+            if (success) {
+                success = me->bluetooth->setup_profile();
+            }
+
             if (success) {
                 me->status = BLUETOOTH_OK;
                 rtn = Q_TRAN(&BluetoothAO_initialized);
@@ -94,6 +102,31 @@ QState BluetoothAO_initialized(BluetoothAO * me, const QEvt* e) {
         case Q_ENTRY_SIG: {
             QF_PUBLISH(&bluetoothInitialized, &me->super);
 
+            rtn = Q_HANDLED();
+            break;
+        }
+
+        case START_ADVERTISEMENT_SIG: {
+            rtn = Q_TRAN(&BluetoothAO_advertising);
+            break;
+        }
+
+        default: {
+            rtn = Q_SUPER(&QHsm_top);
+            break;
+        }
+    }
+
+    return rtn;
+}
+
+QState BluetoothAO_advertising(BluetoothAO * me, const QEvt* e) {
+    QState rtn;
+
+    switch (e->sig) {
+
+        case Q_ENTRY_SIG: {
+            me->bluetooth->start_advertising();
             rtn = Q_HANDLED();
             break;
         }

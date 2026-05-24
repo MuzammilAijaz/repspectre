@@ -11,7 +11,7 @@ extern "C" {
 
 typedef struct {
     const char* device_name; // null-terminated string owned by caller
-    int mtu;
+    uint32_t mtu;
 } BluetoothConfig;
 
 typedef struct {
