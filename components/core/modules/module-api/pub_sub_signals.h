@@ -27,7 +27,10 @@ typedef enum PubSubSignal {
     INITIALIZE_BLUETOOTH_SIG,
     BLUETOOTH_INITIALIZED_SIG,
     START_ADVERTISEMENT_SIG,
-    ADVERTISEMENT_STARTED_SIG,
+    BLUETOOTH_CONNECTED_SIG,
+
+    // Driver level signals
+    _DEVICE_CONNECTED_SIG,
 
     // ---- Sensor -------------------------------------------------
 

@@ -23,6 +23,7 @@ QState BluetoothAO_uninitialized(BluetoothAO * me, const QEvt* e);
 QState BluetoothAO_initialized(BluetoothAO * me, const QEvt* e);
 QState BluetoothAO_error(BluetoothAO * me, const QEvt* e);
 QState BluetoothAO_advertising(BluetoothAO * me, const QEvt* e);
+QState BluetoothAO_connected(BluetoothAO * me, const QEvt* e);
 
 static BluetoothAO m_instance; // private member variable
 
@@ -47,6 +48,7 @@ QState BluetoothAO_initial(BluetoothAO * const me, void const * const par) {
 
     QActive_subscribe(&me->super, INITIALIZE_BLUETOOTH_SIG);
     QActive_subscribe(&me->super, START_ADVERTISEMENT_SIG);
+    QActive_subscribe(&me->super, _DEVICE_CONNECTED_SIG);
 
     return Q_TRAN(&BluetoothAO_uninitialized);
 }
@@ -123,6 +125,11 @@ QState BluetoothAO_initialized(BluetoothAO * me, const QEvt* e) {
             break;
         }
 
+        case _DEVICE_CONNECTED_SIG: {
+            rtn = Q_TRAN(&BluetoothAO_connected);
+            break;
+        }
+
         default: {
             rtn = Q_SUPER(&QHsm_top);
             break;
@@ -138,6 +145,36 @@ QState BluetoothAO_advertising(BluetoothAO * me, const QEvt* e) {
     switch (e->sig) {
 
         case Q_ENTRY_SIG: {
+            rtn = Q_HANDLED();
+            break;
+        }
+
+        case _DEVICE_CONNECTED_SIG: {
+            // stop advertising and move to connected state
+            me->bluetooth->stop_advertising();
+            rtn = Q_TRAN(&BluetoothAO_connected);
+            break;
+        }
+
+        default: {
+            rtn = Q_SUPER(&BluetoothAO_initialized); // PARENT
+            break;
+        }
+    }
+
+    return rtn;
+}
+
+QState BluetoothAO_connected(BluetoothAO * me, const QEvt* e) {
+    static const QEvt bluetoothConnected = QEVT_INITIALIZER(BLUETOOTH_CONNECTED_SIG);
+
+    QState rtn;
+
+    switch (e->sig) {
+
+        case Q_ENTRY_SIG: {
+            QF_PUBLISH(&bluetoothConnected, &me->super);
+
             rtn = Q_HANDLED();
             break;
         }

@@ -170,7 +170,7 @@ TEST(BluetoothAOGroup, GivenInitialized_WhenAdvertisementStarted_ThenMoveToAdver
     qf_ctrl::PublishAndProcess(e1, mRecorder);
 }
 
-//: bluetooth advertisment fails
+// bluetooth advertisment fails
 TEST(BluetoothAOGroup, GivenInitialized_WhenAdvertisementStartFailed_ThenMoveToErrorState) {
     using namespace cms::test;
 
@@ -183,7 +183,47 @@ TEST(BluetoothAOGroup, GivenInitialized_WhenAdvertisementStartFailed_ThenMoveToE
     checkRecordedEventSignal(ERROR_BLUETOOTH_ADV);
 }
 
-// TODO: stop advertismeent and move to conencted state on connection establishment with max/min 1 client
+// move to conencted state on connection establishment with max/min 1 client
+TEST(BluetoothAOGroup, GivenInitialized_WhenDriverReportsDeviceConnected_ThenPublishBluetoothConnected) {
+    using namespace cms::test;
+
+    startAOAndMoveToInitializedState(validConfig);
+
+    /**
+     * DEVICE_CONNECTED_SIG is emitted by the low-level driver stack,
+     * while BLUETOOTH_CONNECTED_SIG is emitted after BluetoothAO updates
+     * its internal state.
+     *
+     * This prevents higher-level AOs (e.g. SequencerAO) from reacting
+     * before BluetoothAO is fully synchronized.
+     */
+    auto* e1 = Q_NEW(QEvt, _DEVICE_CONNECTED_SIG);
+    qf_ctrl::PublishAndProcess(e1, mRecorder);
+    checkRecordedEventSignal(BLUETOOTH_CONNECTED_SIG);
+}
+
+TEST(BluetoothAOGroup, GivenAdvertising_WhenDeviceConnected_ThenStopAdvertisingAndPublishBluetoothConnected) {
+    using namespace cms::test;
+
+    startAOAndMoveToInitializedState(validConfig);
+
+    // move to advertising state
+    mock().expectOneCall("bluetooth_start_advertising")
+        .andReturnValue(true);
+    auto* e1 = Q_NEW(QEvt, START_ADVERTISEMENT_SIG);
+    qf_ctrl::PublishAndProcess(e1, mRecorder);
+
+    // Now in advertising state.
+    // When _DEVICE_CONNECTED_SIG received, expect stop_advertising
+    mock().expectOneCall("bluetooth_stop_advertising")
+        .andReturnValue(true);
+    auto* e2 = Q_NEW(QEvt, _DEVICE_CONNECTED_SIG);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+
+    checkRecordedEventSignal(BLUETOOTH_CONNECTED_SIG);
+}
+
+// TODO: add test(s) here related to previous, that completes the test coverage of "advertising"/ "conenction" establishment
 
 // =============================================================================
 // | Failure Handling
