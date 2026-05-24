@@ -31,6 +31,7 @@ typedef enum PubSubSignal {
 
     // Driver level signals
     _DEVICE_CONNECTED_SIG,
+    _DEVICE_DISCONNECTED_SIG,
 
     // ---- Sensor -------------------------------------------------
 

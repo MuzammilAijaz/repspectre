@@ -223,7 +223,22 @@ TEST(BluetoothAOGroup, GivenAdvertising_WhenDeviceConnected_ThenStopAdvertisingA
     checkRecordedEventSignal(BLUETOOTH_CONNECTED_SIG);
 }
 
-// TODO: add test(s) here related to previous, that completes the test coverage of "advertising"/ "conenction" establishment
+TEST(BluetoothAOGroup, GivenConnected_WhenDeviceDisconnected_ThenStartAdvertisingAndMoveToAdvertisingState) {
+    using namespace cms::test;
+
+    startAOAndMoveToInitializedState(validConfig);
+
+    // move to connected state
+    auto* e1 = Q_NEW(QEvt, _DEVICE_CONNECTED_SIG);
+    qf_ctrl::PublishAndProcess(e1, mRecorder);
+    checkRecordedEventSignal(BLUETOOTH_CONNECTED_SIG);
+
+    // Now in connected state.
+    mock().expectOneCall("bluetooth_start_advertising")
+        .andReturnValue(true);
+    auto* e2 = Q_NEW(QEvt, _DEVICE_DISCONNECTED_SIG);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+}
 
 // =============================================================================
 // | Failure Handling
