@@ -4,10 +4,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
+#include "qsafe.h"
 #include "sensor.h"
 #include "mpu6050.h"
 #include "i2c.h"
 #include "qpc.h"
+
+Q_DEFINE_THIS_MODULE("SensorEsp32")
 
 #define ACTIVE_LOW 1
 #define ACTIVE_HIGH 0
@@ -205,13 +208,24 @@ SensorStatus mpu6050_init_adapter(SensorConfig config) {
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_NEGEDGE,
     };
-    gpio_config(&io_conf);
+    esp_err_t err;
+    err = gpio_config(&io_conf);
+    ESP_ERROR_CHECK(err); // Panic immediately if hardware config is wrong
     static bool isr_service_installed = false;
     if (!isr_service_installed) {
-        gpio_install_isr_service(0);
+        err = gpio_install_isr_service(0);
+
+        // ESP_ERR_INVALID_STATE is safe to ignore because it just means
+        // another module installed it first. Real failures must be caught.
+        if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
+            ESP_ERROR_CHECK(err);
+        }
         isr_service_installed = true;
     }
-    gpio_isr_handler_add(I2C_INTERRUPT_PIN, mpuISR, NULL);
+    err = gpio_isr_handler_add(I2C_INTERRUPT_PIN, mpuISR, NULL);
+    if (err != ESP_OK) {
+        return ERR_I2C;
+    }
 
     // gpio_isr_handler_add(I2C_INTERRUPT_PIN, mpuISR, NULL);
     // pinMode(I2C_INTERRUPT_PIN, INPUT_PULLUP);

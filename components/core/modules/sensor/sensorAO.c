@@ -43,7 +43,6 @@ void SensorAO_dtor() {
 
 QState SensorAO_initial(SensorAO * const me, void const * const par) {
     Q_UNUSED_PAR(par);
-    Q_UNUSED_PAR(me);
 
     QActive_subscribe(&me->super, INITIALIZE_MPU_SIG);
     QActive_subscribe(&me->super, MPU_FIFO_FULL);

@@ -7,7 +7,10 @@ extern "C" {
 
 #include "bluetooth.h"
 
-extern BluetoothInterface Fake_Bluetooth_interface;
+extern BluetoothInterface Mock_Bluetooth_interface;
+
+void Mock_Bluetooth_ctor(void);
+void Mock_Bluetooth_dtor(void);
 
 #ifdef __cplusplus
 }

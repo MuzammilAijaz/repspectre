@@ -160,7 +160,7 @@ void QS_onCommand(uint8_t cmdId,
 
         case CMD_BT_INIT:
             {
-                bool success = espBluetoothInterface.init(&espBluetoothConfig);
+                bool success = espBluetoothInterface.init(espBluetoothConfig);
 
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR( success ? "INIT" : "INIT FAILED");
@@ -201,7 +201,9 @@ void QS_onCommand(uint8_t cmdId,
 
         case CMD_BT_NOTIFY:
             {
-                bool success = espBluetoothInterface.notify(param1);
+                SensorData data = {0};
+                data.accel.x = (float)param1;
+                bool success = espBluetoothInterface.notify(data);
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR(success ? "NOTIFY_OK" : "NOTIFY_FAIL");
                 QS_END();
@@ -233,7 +235,9 @@ void QS_onCommand(uint8_t cmdId,
 
         case CMD_BT_SET_VALUE:
             {
-                espBluetoothInterface.set_value(param1);
+                SensorData data = {0};
+                data.accel.x = (float)param1;
+                espBluetoothInterface.set_value(data);
 
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR("SETVAL");

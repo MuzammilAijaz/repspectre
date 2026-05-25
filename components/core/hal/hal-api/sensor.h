@@ -21,7 +21,6 @@ typedef struct {
     Axis3f accel;
     Axis3f gyro;
     Axis3f mag;
-    bool valid;
     uint32_t timestamp;
 } SensorData;
 

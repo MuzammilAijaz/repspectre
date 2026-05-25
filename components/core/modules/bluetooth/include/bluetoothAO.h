@@ -9,10 +9,21 @@ extern "C" {
 #include "qpc.h"
 #include "bluetooth.h"
 
+typedef enum {
+    BLUETOOTH_OK,
+    ERR_BLUETOOTH_ADV_START,
+    ERR_INIT,
+} BluetoothStatus;
+
 typedef struct {
     QEvt super;
     BluetoothConfig config;
 } BluetoothAOInitializeRequestEvent;
+
+typedef struct {
+    QEvt super;
+    SensorData data;
+} BluetoothAOSendDataEvent;
 
 /**
  * Opaque pointer to the active object

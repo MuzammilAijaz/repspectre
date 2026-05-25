@@ -25,6 +25,14 @@ typedef enum PubSubSignal {
 
     // ---- Bluetooth ----------------------------------------------
     INITIALIZE_BLUETOOTH_SIG,
+    BLUETOOTH_INITIALIZED_SIG,
+    START_ADVERTISEMENT_SIG,
+    BLUETOOTH_CONNECTED_SIG,
+    BLUETOOTH_SEND_DATA_SIG,
+
+    // Driver level signals
+    _DEVICE_CONNECTED_SIG,
+    _DEVICE_DISCONNECTED_SIG,
 
     // ---- Sensor -------------------------------------------------
 
@@ -49,6 +57,9 @@ typedef enum PubSubSignal {
      * requires timer implementation.
      */
     // ERROR_SENSOR_TIMEOUT,
+
+    ERROR_BLUETOOTH_INIT,
+    ERROR_BLUETOOTH_ADV,
 
     // NOTE: active objects should start their internal
     // private signal enums values after this value.

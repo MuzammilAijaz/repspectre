@@ -44,6 +44,11 @@ test-hil:
 	-DQUTEST_PY=$(QUTEST_PY) && \
 	$(CTEST) --test-dir $(CMAKE_BUILD_DIR) -L hil --output-on-failure
 
+# Run only the bluetooth test
+test-bluetooth:
+	$(CMAKE) --build $(CMAKE_BUILD_DIR)
+	$(CTEST) --test-dir $(CMAKE_BUILD_DIR) -R bluetoothAO_test --output-on-failure
+
 clean:
 	@echo "Cleaning build artifacts..."
 	$(CMAKE) --build $(CMAKE_BUILD_DIR) --target clean

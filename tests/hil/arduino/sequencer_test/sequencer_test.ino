@@ -8,10 +8,24 @@ extern "C" {
 #include "sensorAO.h"
 #include "bluetoothAO.h"
 #include "BSP.h"
+#include "qs_port.h"
 
-#include "sensor_arduino.h"
-#include "BSP_arduino.h"
-#include "i2c_config_arduino.h"
+// -------------------------------------------------------------
+#define ESP_IDF 1
+
+#if ESP_IDF
+    #include "sensor_esp32.h"
+    #include "BSP_esp.h"
+    #include "i2c_config_esp32.h"
+    #include "bluetooth_esp.h"
+
+#else
+    #include "sensor_arduino.h"
+    #include "BSP_arduino.h"
+    #include "i2c_config_arduino.h"
+
+#endif
+// -------------------------------------------------------------
 }
 
 Q_DEFINE_THIS_FILE
@@ -44,8 +58,9 @@ static QSubscrList subscrSto[MAX_PUB_SUB_SIG];
 // private storage for static events
 static QEvt const *sequencerQueueSto[10];
 static QEvt const *sensorQueueSto[10];
-static QActiveDummy bluetoothDummy;
-static QActiveDummy sensorEventRecorderDummy;
+static QEvt const *bluetoothQueueSto[10];
+
+static QActiveDummy publishedEventRecorderDummy;
 static QActive *publishedEventRecorderAO;
 
 static void resetFixtureState(void) {
@@ -77,25 +92,27 @@ static void run_test_fixture() {
     QF_init();
     Q_ALLEGE(QS_INIT(NULL));
 
-    // Don't send anything yet; this avoids sending of traces from the qp side
-    // before the script and the fixture is synced.
+    /* Don't send anything yet; this avoids sending of traces from the qp side
+     * before the script and the fixture is synced. */
     QS_GLB_FILTER(0);
 
     // ---- AO construction ----------------------------------------
-
     // called before QS_userDictionaries(), to be able to not pass null
+
+#if ESP_IDF
+    SequencerAO_ctor(&espBspInterface);
+    SensorAO_ctor(&espSensorInterface);
+    BluetoothAO_ctor(&espBluetoothInterface);
+#else
     SequencerAO_ctor(&arduinoBspInterface);
     SensorAO_ctor(&arduinoSensorInteface);
+    // TODO bluetooth for arudino
+#endif
 
-    QActiveDummy_ctor(&bluetoothDummy);
-    QActiveDummy_ctor(&sensorEventRecorderDummy);
+    QActiveDummy_ctor(&publishedEventRecorderDummy);
+    publishedEventRecorderAO = &publishedEventRecorderDummy.super;
 
-    // since bluetooth not implemented yet.
-    g_bluetoothAO = &bluetoothDummy.super;
-
-    publishedEventRecorderAO = &sensorEventRecorderDummy.super;
-    
-    // -------------------------------------------------------------
+    // ---- QP / QS ------------------------------------------------
 
     QS_userDictionaries();
 
@@ -110,15 +127,17 @@ static void run_test_fixture() {
     QF_poolInit(smallPoolSto, sizeof(smallPoolSto), sizeof(smallPoolSto[0]));
     QF_poolInit(medPoolSto, sizeof(medPoolSto), sizeof(medPoolSto[0]));
 
+    // ---- Active object ------------------------------------------
+
     QACTIVE_START(g_sensorAO,
-            3U,                                          // priority
+            4U,                                          // priority
             sensorQueueSto, Q_DIM(sensorQueueSto),       // event queue
             NULL, 0U,                                    // no thread stack
             NULL);                                       // no initialization event
 
     QACTIVE_START(g_bluetoothAO,
-            4U,                                          // priority
-            NULL, 0U,                                    // no event queue
+            3U,                                          // priority
+            bluetoothQueueSto, Q_DIM(bluetoothQueueSto), // event queue
             NULL, 0U,                                    // no thread stack
             NULL);                                       // no initialization event
 
@@ -128,6 +147,7 @@ static void run_test_fixture() {
             NULL, 0U,                                    // no thread stack
             NULL);                                       // no initialization event
 
+    // ---- Event Recorder -----------------------------------------
     // Event Recorder AO for verifying that an event has been published.
     QACTIVE_START(publishedEventRecorderAO,
             5U,                                          // priority
@@ -136,6 +156,7 @@ static void run_test_fixture() {
             NULL);                                       // no initialization event
     // NOTE: subscribe to all events that require testing here.
     QActive_subscribe(publishedEventRecorderAO, MPU_INITIALIZED_SIG);
+    QActive_subscribe(publishedEventRecorderAO, BLUETOOTH_INITIALIZED_SIG);
 }
 
 void setup() {
@@ -178,6 +199,7 @@ void QS_onCommand(uint8_t cmdId,
         case CMD_DELAY_FOR:
             {
                 delay(param1);
+                break;
             }
 
         default:
@@ -213,17 +235,13 @@ void QS_onTestPost(void const *sender,
     if (!status) {
         QS_BEGIN_ID(HIL_TEST_SIG, 1U)
             QS_STR("post failed");
-            // QS_SIG(e->sig, recipient);
+        // QS_SIG(e->sig, recipient);
         QS_END();
     }
-    else if (recipient == g_sensorAO && e->sig == INITIALIZE_MPU_SIG) {
-        // SensorAOInitializeMpuRequestEvent const *sensorEvt =
-        //     (SensorAOInitializeMpuRequestEvent const *)e;
 
+    else if (recipient == g_sensorAO && e->sig == INITIALIZE_MPU_SIG) {
         QS_BEGIN_ID(HIL_TEST_SIG, 1U)
             QS_STR("sensor init requested");
-            // QS_U16(0, sensorEvt->config.sample_rate_hz);
-            // QS_U8(0, sensorEvt->config.calib_loops);
         QS_END();
     }
     else if (recipient == publishedEventRecorderAO && e->sig == MPU_INITIALIZED_SIG) {
@@ -231,6 +249,18 @@ void QS_onTestPost(void const *sender,
             QS_STR("sensor initialized");
         QS_END();
     }
+
+    else if (recipient == g_bluetoothAO && e->sig == INITIALIZE_BLUETOOTH_SIG) {
+        QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+            QS_STR("bluetooth init requested");
+        QS_END();
+    }
+    else if (recipient == publishedEventRecorderAO && e->sig == BLUETOOTH_INITIALIZED_SIG) {
+        QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+            QS_STR("bluetooth initialized");
+        QS_END();
+    }
+
     else if (recipient == g_sequencerAO && e->sig == ERROR_BSP_INIT) {
         QS_BEGIN_ID(HIL_TEST_SIG, 1U)
             QS_STR("bsp error published");

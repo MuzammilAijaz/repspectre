@@ -6,3 +6,4 @@ set(COMMON_TEST_LIBRARIES
 add_subdirectory(test-utils)
 add_subdirectory(sensor)
 add_subdirectory(sequencer)
+add_subdirectory(bluetooth)
