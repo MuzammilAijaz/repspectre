@@ -297,7 +297,8 @@ static bool Bluetooth_setup_profile(void) {
 
     // Wait until sync with the controller.
     while (!is_on_sync_called) {
-        ble_npl_time_delay(1);
+        // tick length depends on CONFIG_FREERTOS_HZ setting
+        ble_npl_time_delay(ble_npl_time_ms_to_ticks32(3));
     }
 
     return true;
