@@ -358,15 +358,18 @@ static bool Bluetooth_set_preferred_mtu(uint16_t mtu) {
     return rc == 0;
 }
 
-static bool Bluetooth_set_value(uint32_t param) {
-    snprintf(characteristic_value, sizeof(characteristic_value), "V:%u", (unsigned int)param);
+static bool Bluetooth_set_value(SensorData data) {
+    snprintf(characteristic_value, sizeof(characteristic_value),
+             "A:%.1f,%.1f,%.1f G:%.1f,%.1f,%.1f",
+             data.accel.x, data.accel.y, data.accel.z,
+             data.gyro.x, data.gyro.y, data.gyro.z);
     return true;
 }
 
-static bool Bluetooth_notify(uint32_t param) {
+static bool Bluetooth_notify(SensorData data) {
     if (!is_initialized) return false;
 
-    Bluetooth_set_value(param);
+    Bluetooth_set_value(data);
 
     /* Trigger the notification.
      *

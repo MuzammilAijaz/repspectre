@@ -48,6 +48,7 @@ QState BluetoothAO_initial(BluetoothAO * const me, void const * const par) {
 
     QActive_subscribe(&me->super, INITIALIZE_BLUETOOTH_SIG);
     QActive_subscribe(&me->super, START_ADVERTISEMENT_SIG);
+    QActive_subscribe(&me->super, BLUETOOTH_SEND_DATA_SIG);
     QActive_subscribe(&me->super, _DEVICE_CONNECTED_SIG);
     QActive_subscribe(&me->super, _DEVICE_DISCONNECTED_SIG);
 
@@ -176,6 +177,14 @@ QState BluetoothAO_connected(BluetoothAO * me, const QEvt* e) {
         case Q_ENTRY_SIG: {
             QF_PUBLISH(&bluetoothConnected, &me->super);
 
+            rtn = Q_HANDLED();
+            break;
+        }
+
+        case BLUETOOTH_SEND_DATA_SIG: {
+            const BluetoothAOSendDataEvent * const event =
+                (const BluetoothAOSendDataEvent *) e;
+            me->bluetooth->notify(event->data);
             rtn = Q_HANDLED();
             break;
         }

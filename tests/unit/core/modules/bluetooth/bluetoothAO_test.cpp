@@ -107,6 +107,13 @@ BluetoothConfig validConfig = {
     .mtu = 500,
 };
 
+SensorData sensorTestData = {
+    .accel = {1.0f, 2.0f, 3.0f},
+    .gyro = {4.0f, 5.0f, 6.0f},
+    .mag = {7.0f, 8.0f, 9.0f},
+    .timestamp = 1000
+};
+
 TEST(BluetoothAOGroup, CppUTest_Smoke_test) {
     startAOUnderTest();
 }
@@ -238,6 +245,41 @@ TEST(BluetoothAOGroup, GivenConnected_WhenDeviceDisconnected_ThenStartAdvertisin
         .andReturnValue(true);
     auto* e2 = Q_NEW(QEvt, _DEVICE_DISCONNECTED_SIG);
     qf_ctrl::PublishAndProcess(e2, mRecorder);
+}
+
+TEST(BluetoothAOGroup, GivenConnected_WhenSendDataReceived_ThenSendNotificiations) {
+    using namespace cms::test;
+
+    startAOAndMoveToInitializedState(validConfig);
+
+    // move to connected state
+    auto* eConn = Q_NEW(QEvt, _DEVICE_CONNECTED_SIG);
+    qf_ctrl::PublishAndProcess(eConn, mRecorder);
+    checkRecordedEventSignal(BLUETOOTH_CONNECTED_SIG);
+
+    mock().expectOneCall("bluetooth_notify")
+        .andReturnValue(true);
+    auto* eSend = Q_NEW(BluetoothAOSendDataEvent, BLUETOOTH_SEND_DATA_SIG);
+    eSend->data = sensorTestData;
+    qf_ctrl::PublishAndProcess(&eSend->super, mRecorder);
+}
+
+// might remove
+TEST(BluetoothAOGroup, GivenAdvertising_WhenSendDataReceived_ThenIgnoreSignal) {
+    using namespace cms::test;
+
+    startAOAndMoveToInitializedState(validConfig);
+
+    // move to advertising state
+    mock().expectOneCall("bluetooth_start_advertising").andReturnValue(true);
+    auto* eAdv = Q_NEW(QEvt, START_ADVERTISEMENT_SIG);
+    qf_ctrl::PublishAndProcess(eAdv, mRecorder);
+
+    // Now in advertising state (not connected).
+    // (mock will fail if it's called because no expectation was set)
+    auto* eSend = Q_NEW(BluetoothAOSendDataEvent, BLUETOOTH_SEND_DATA_SIG);
+    eSend->data = sensorTestData;
+    qf_ctrl::PublishAndProcess(&eSend->super, mRecorder);
 }
 
 // =============================================================================

@@ -20,6 +20,11 @@ typedef struct {
     BluetoothConfig config;
 } BluetoothAOInitializeRequestEvent;
 
+typedef struct {
+    QEvt super;
+    SensorData data;
+} BluetoothAOSendDataEvent;
+
 /**
  * Opaque pointer to the active object
  *
