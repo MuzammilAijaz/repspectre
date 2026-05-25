@@ -8,6 +8,7 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h> // for size_t
 #include <stdbool.h>
+#include "sensor.h"
 
 typedef struct {
     const char* device_name; // null-terminated string owned by caller
@@ -21,8 +22,8 @@ typedef struct {
     bool (*stop_advertising)(void);
     bool (*is_advertising)(void);
     bool (*set_preferred_mtu)(uint16_t mtu);
-    bool (*set_value)(uint32_t param);
-    bool (*notify)(uint32_t param);
+    bool (*set_value)(SensorData data);
+    bool (*notify)(SensorData data);
     void (*get_address)(char* out_str, size_t max_len);
     void (*run_callback_test)(void);
 } BluetoothInterface;

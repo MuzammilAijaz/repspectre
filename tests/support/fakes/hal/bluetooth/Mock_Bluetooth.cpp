@@ -39,10 +39,10 @@ static bool Mock_stop_advertising(void) {
 	return success;
 }
 
-static bool Mock_notify(uint32_t param) {
+// NOTE: data is not used.
+static bool Mock_notify(SensorData data) {
 	return mock()
 		.actualCall("bluetooth_notify")
-		.withParameter("param", param)
 		.returnBoolValueOrDefault(true);
 }
 
@@ -58,8 +58,8 @@ static bool Mock_set_preferred_mtu(uint16_t mtu) {
 		.returnBoolValueOrDefault(true);
 }
 
-static bool Mock_set_value(uint32_t value) {
-	mock().actualCall("bluetooth_set_value").withParameter("value", value);
+static bool Mock_set_value(SensorData data) {
+	mock().actualCall("bluetooth_set_value");
 }
 
 static void Mock_get_address(char* out_addr, size_t max_len) {

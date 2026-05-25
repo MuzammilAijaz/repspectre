@@ -248,7 +248,7 @@ data = loop.run_until_complete(
 expect("@timestamp HIL_TEST_SIG NOTIFY_OK")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG Characteristic::onStatus code=0 (*)")
-assert data == b'V:42', f"Expected notification payload b'V:42', got {data!r}"
+assert data == b'A:42.0,0.0,0.0 G:0.0,0.0,0.0', f"Expected notification payload b'A:42.0,0.0,0.0 G:0.0,0.0,0.0', got {data!r}"
 
 # ==== NO RESET ===============================================================
 
@@ -273,8 +273,8 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 data = loop.run_until_complete(
     host.read_characteristic(characteristic_uuid=CHAR_UUID)
 )
-expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG Characteristic::onRead UUID=0xbeef Value=V:77")
-assert data == b"V:77"
+expect("@timestamp BLUETOOTH_CALLBACK_TEST_SIG Characteristic::onRead UUID=0xbeef Value=A:77.0,0.0,0.0 G:0.0,0.0,0.0")
+assert data == b"A:77.0,0.0,0.0 G:0.0,0.0,0.0"
 
 # ==== NO RESET ===============================================================
 
