@@ -30,7 +30,26 @@ extern "C" {
 Q_DEFINE_THIS_FILE
 
 enum {
-    START_PERIODIC_TIMER,
+    CMD_SMOKE,
+    CMD_CONFIG_SENSOR,
+    CMD_READ_ACCEL,
+    CMD_CHECK_ISR,
+    CMD_DELAY,
+    CMD_CLEAR_INTERRUPTS,
+    CMD_RESET_HARDWARE,
+    CMD_GET_STATE,
+    CMD_DELAY_AND_COUNT,
+    CMD_TEST_CONNECTION,
+    CMD_RESERVED_10,
+    CMD_RESERVED_11,
+    CMD_GET_INT_ENABLED,
+    CMD_READ_DMP_YPR,
+    CMD_GET_FIFO_COUNT,
+    CMD_TOGGLE_PERIODIC,
+    CMD_RESET_FIFO,
+    CMD_MANUAL_DISPATCH,
+    CMD_SYSTEM_TICK,
+    TOTAL_CMDS
 };
 
 extern "C" char const Q_BUILD_DATE[] = __DATE__;
@@ -135,13 +154,27 @@ extern "C" void QF_onClockTick(void) {
 
 static void QS_DICTIONARY(void) {
     QS_OBJ_DICTIONARY(&l_adc);
-
     // TODO:
     QS_OBJ_DICTIONARY(&l_fifoCheckerAO.timer); // for tick() inside python script
-
     QS_USR_DICTIONARY(HIL_TEST_SIG);
 
-    QS_ENUM_DICTIONARY(START_PERIODIC_TIMER, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_SMOKE, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_CONFIG_SENSOR, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_READ_ACCEL, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_CHECK_ISR, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_DELAY, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_CLEAR_INTERRUPTS, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_RESET_HARDWARE, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_GET_STATE, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_DELAY_AND_COUNT, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_TEST_CONNECTION, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_GET_INT_ENABLED, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_READ_DMP_YPR, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_GET_FIFO_COUNT, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_TOGGLE_PERIODIC, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_RESET_FIFO, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_MANUAL_DISPATCH, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_SYSTEM_TICK, QS_CMD);
 }
 
 extern "C" void QS_rx_input(void);
@@ -196,7 +229,7 @@ void QS_onCommand(uint8_t cmdId,
         uint32_t param3) {
     switch (cmdId) {
         // Test if the HIL system works properly
-        case 0U:
+        case CMD_SMOKE:
             {
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR("Smoked!");
@@ -205,7 +238,7 @@ void QS_onCommand(uint8_t cmdId,
             }
 
         // Configure Sensor
-        case 1U:
+        case CMD_CONFIG_SENSOR:
             {
                 // platform implementation for arduino
                 // setSensorBusDef(&arduinoSensorBusDef);
@@ -221,8 +254,6 @@ void QS_onCommand(uint8_t cmdId,
                     .calib_loops = 8,
                     .fifo_size = 64,
                 };
-
-                // Spy_setMpuIsrSemaphore(&mpuIsrSem);
 
                 // SensorStatus status = arduinoSensorInteface.Sensor_init(config);
                 SensorStatus status = espSensorInterface.Sensor_init(config);
@@ -243,15 +274,13 @@ void QS_onCommand(uint8_t cmdId,
             }
 
         // get value from sensor
-        case 2U:
+        case CMD_READ_ACCEL:
             {
                 Axis3f gyro;
                 gyro.x = 0.0f;
                 gyro.y = 0.0f;
                 gyro.z = 0.0f;
-                // noInterrupts();
                 espSensorInterface.Sensor_readAcc(&gyro);
-                // interrupts();
                 if (gyro.x == 0.0f) {
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                         QS_STR("MPU6050_GYRO: ZERO");
@@ -266,7 +295,7 @@ void QS_onCommand(uint8_t cmdId,
             }
 
         // Check if sample-ready ISR called
-        case 3U:
+        case CMD_CHECK_ISR:
             {
                 Spy_resetMpuFlag();
                 Spy_resetSampleReadyFlag();
@@ -291,7 +320,7 @@ void QS_onCommand(uint8_t cmdId,
             }
 
         // wait x ms; use-case: validate interrupt latency without polling.
-        case 4U:
+        case CMD_DELAY:
             {
                 fullInterruptStateClear();
                 delay(param1);
@@ -299,7 +328,7 @@ void QS_onCommand(uint8_t cmdId,
             }
 
         // Delay + Count interrupt loop.
-        case 8U:
+        case CMD_DELAY_AND_COUNT:
             {
                 fullInterruptStateClear();
                 int start = millis();
@@ -325,7 +354,7 @@ void QS_onCommand(uint8_t cmdId,
 
                 break;
             }
-        case 9U:
+        case CMD_TEST_CONNECTION:
             {
                 setSensorBusDef(&esp32SensorBusDef);
                 Spy_setI2cDriver(&sensorsBus); // not required
@@ -347,7 +376,7 @@ void QS_onCommand(uint8_t cmdId,
             }
 
         // reset mpu6050 hardware state
-        case 6U:
+        case CMD_RESET_HARDWARE:
             {
                 if (sensorConfigured) {
                     Spy_disableMpuInterrupt();
@@ -362,7 +391,7 @@ void QS_onCommand(uint8_t cmdId,
             }
 
         // use case: verify current software state of hardware
-        case 7:
+        case CMD_GET_STATE:
             {
                 uint32_t isrCount = Spy_getIsrCount();
 
@@ -381,7 +410,7 @@ void QS_onCommand(uint8_t cmdId,
             }
 
         // get value of interrupt register; shows all the enabled interrupts currently
-        case 12U:
+        case CMD_GET_INT_ENABLED:
             {
                 uint8_t enabled = mpu6050GetIntEnabled();
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
@@ -392,7 +421,7 @@ void QS_onCommand(uint8_t cmdId,
             }
 
         // Read DMP YPR
-        case 13U:
+        case CMD_READ_DMP_YPR:
             {
                 // TODO: create real implementation inside sensor module
 
@@ -420,7 +449,7 @@ void QS_onCommand(uint8_t cmdId,
             }
 
         // Get FIFO Count
-        case 14U:
+        case CMD_GET_FIFO_COUNT:
             {
                 uint16_t count = mpu6050GetFIFOCount();
                 if (count > 0) {
@@ -436,27 +465,8 @@ void QS_onCommand(uint8_t cmdId,
                 break;
             }
 
-        // Toggle periodic check
-        case 15U:
-            {
-                uint32_t interval = param1;
-                if (interval > 0) {
-                    QTimeEvt_armX(&l_fifoCheckerAO.timer, interval, interval);
-                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                        QS_STR("PERIODIC_CHECK_STARTED");
-                        QS_U32(0, interval);
-                    QS_END();
-                } else {
-                    QTimeEvt_disarm(&l_fifoCheckerAO.timer);
-                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                        QS_STR("PERIODIC_CHECK_STOPPED");
-                    QS_END();
-                }
-                break;
-            }
-
         // Reset FIFO
-        case 16U:
+        case CMD_RESET_FIFO:
             {
                 mpu6050ResetFIFO();
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
@@ -466,7 +476,7 @@ void QS_onCommand(uint8_t cmdId,
             }
 
         // Manual dispatch for background AOs
-        case 17U:
+        case CMD_MANUAL_DISPATCH:
             {
                 // Dispatch all ready events for l_fifoCheckerAO
                 while (l_fifoCheckerAO.super.eQueue.frontEvt != (QEvt *)0) {

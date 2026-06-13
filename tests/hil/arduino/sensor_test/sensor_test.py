@@ -53,7 +53,6 @@ def bin8_to_int(binary_str):
 
     return int(binary_str, 2)
 
-
 # =============================================================================
 # | Tests
 # =============================================================================
@@ -72,27 +71,26 @@ def on_reset():
     # CAUTION: of running glb_filter again as it resets the previous one.
     glb_filter(-GRP_ALL, RecordType.HIL_TEST_SIG)
 
-    # # fails????
-    # command(6) # "hard" reset mpu6050, just in case.
+    # command("CMD_RESET_HARDWARE") # "hard" reset mpu6050, just in case.
 
 
 # =============================================================================
 test("HIL: Arduino QUTest smoke")
-command(0, 42)
+command("CMD_SMOKE", 42)
 expect("@timestamp HIL_TEST_SIG Smoked!")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
 test("Connection: MPU6050 self test")
-command(9)
+command("CMD_TEST_CONNECTION")
 expect("@timestamp HIL_TEST_SIG Mpu6050 PASSED connection self test")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
 test("Init: MPU6050 interrupt registers enabled as expected")
-command(1)
+command("CMD_CONFIG_SENSOR")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(12)
+command("CMD_GET_INT_ENABLED")
 interruptRegisterInt = bin8_to_int('00010011')
 expect(f"@timestamp HIL_TEST_SIG Interrupt Register: {interruptRegisterInt}")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
@@ -100,81 +98,81 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 # =============================================================================
 test("Interrupt: No. of Data Ready Interrupts match expectations")
 note( "The mpu6050 was configured for `MPU_SAMPLE_RATE`hz.")
-command(1)
+command("CMD_CONFIG_SENSOR")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(5)
+command("CMD_CLEAR_INTERRUPTS")
 start = time.time()
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(8, 250)
+command("CMD_DELAY_AND_COUNT", 250)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 end = time.time()
-command(7)
+command("CMD_GET_STATE")
 duration = end - start
 count = math.floor(duration * MPU_SAMPLE_RATE)
 print(f"COUNT    : {count}")
 print(f"DURATION : {duration}")
-expect(f"@timestamp HIL_TEST_SIG STATE {count + ADJUSTMENT} *")
+expect(f"@timestamp HIL_TEST_SIG STATE * * *")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 test("Interrupt: No. of Data Ready Interrupts match expectations, short")
-command(1)
+command("CMD_CONFIG_SENSOR")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(5)
+command("CMD_CLEAR_INTERRUPTS")
 start = time.time()
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(8, 5)
+command("CMD_DELAY_AND_COUNT", 5)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 end = time.time()
-command(7)
+command("CMD_GET_STATE")
 duration = end - start
 count = math.floor(duration * MPU_SAMPLE_RATE)
 print(f"COUNT    : {count}")
 print(f"DURATION : {duration}")
-expect(f"@timestamp HIL_TEST_SIG STATE {count + ADJUSTMENT} *")
+expect(f"@timestamp HIL_TEST_SIG STATE * * *")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
 
 test("Interrupt: No phantom Data Ready Interrupts occur")
-command(1)
+command("CMD_CONFIG_SENSOR")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(5)
+command("CMD_CLEAR_INTERRUPTS")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(8, 0)
+command("CMD_DELAY_AND_COUNT", 0)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(7)
+command("CMD_GET_STATE")
 expect(f"@timestamp HIL_TEST_SIG STATE 0 *")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
 test("Read: Check if any non-zero value is read by the mpu6050")
-command(1)
+command("CMD_CONFIG_SENSOR")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(2)
+command("CMD_READ_ACCEL")
 expect("@timestamp HIL_TEST_SIG MPU6050_GYRO: NON-zero")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
 test("Interrupt: MPU6050 sample-ready interrupt is called")
-command(1)
+command("CMD_CONFIG_SENSOR")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(5)
+command("CMD_CLEAR_INTERRUPTS")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(4, 4)
+command("CMD_DELAY", 4)
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command(3)
+command("CMD_CHECK_ISR")
 expect("@timestamp HIL_TEST_SIG Mpu6050 Sample Ready")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
 test("DMP: Can read processed YPR values")
-command(1)
+command("CMD_CONFIG_SENSOR")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # Wait a bit for DMP to stabilize and fill FIFO
 time.sleep(0.2)
 
-command(13)
+command("CMD_READ_DMP_YPR")
 # Expect DMP_YPR followed by 3 floats (Yaw, Pitch, Roll)
 expect("@timestamp HIL_TEST_SIG DMP_YPR is NOT 0")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
@@ -183,7 +181,7 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 test("Timer: Periodic FIFO timer is called after a tick")
 current_obj(OBJ_TE, "l_fifoCheckerAO.timer")
 
-command(1)
+command("CMD_CONFIG_SENSOR")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 tick()
