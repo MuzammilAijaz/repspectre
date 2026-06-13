@@ -70,7 +70,7 @@ def on_reset():
 
     # ALL signals
     # CAUTION: of running glb_filter again as it resets the previous one.
-    glb_filter(GRP_UA, -RecordType.COMMAND_TEST_SIG, -RecordType.MPU6050_TEST_SIG)
+    glb_filter(-GRP_ALL, RecordType.HIL_TEST_SIG)
 
     # # fails????
     # command(6) # "hard" reset mpu6050, just in case.
@@ -79,7 +79,7 @@ def on_reset():
 # =============================================================================
 test("HIL: Arduino QUTest smoke")
 command(0, 42)
-expect("@timestamp HIL_TEST_SIG ADC_read 42")
+expect("@timestamp HIL_TEST_SIG Smoked!")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
@@ -165,3 +165,30 @@ expect("@timestamp Trg-Done QS_RX_COMMAND")
 command(3)
 expect("@timestamp HIL_TEST_SIG Mpu6050 Sample Ready")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# =============================================================================
+test("DMP: Can read processed YPR values")
+command(1)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# Wait a bit for DMP to stabilize and fill FIFO
+time.sleep(0.2)
+
+command(13)
+# Expect DMP_YPR followed by 3 floats (Yaw, Pitch, Roll)
+expect("@timestamp HIL_TEST_SIG DMP_YPR is NOT 0")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# =============================================================================
+test("Timer: Periodic FIFO timer is called after a tick")
+current_obj(OBJ_TE, "l_fifoCheckerAO.timer")
+
+command(1)
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+tick()
+expect("@timestamp HIL_TEST_SIG PERIODIC_FIFO_CHECK FIFO empty")
+expect("@timestamp Trg-Done QS_RX_TICK")
+
+# =============================================================================
+# TODO: confirm that FIFO is NOT 0 after some time...

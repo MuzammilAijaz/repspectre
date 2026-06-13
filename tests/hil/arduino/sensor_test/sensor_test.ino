@@ -11,6 +11,7 @@
 
 #include <Arduino.h>
 #include <semphr.h>
+#include <Ticker.h>
 
 extern "C" {
 #include "i2c.h"
@@ -22,40 +23,125 @@ extern "C" {
 
 #include "sensor_esp32.h"
 #include "i2c_config_esp32.h"
+#include "pub_sub_signals.h"
 
 }
 
 Q_DEFINE_THIS_FILE
 
+enum {
+    START_PERIODIC_TIMER,
+};
+
 extern "C" char const Q_BUILD_DATE[] = __DATE__;
 extern "C" char const Q_BUILD_TIME[] = __TIME__;
 
+// Arduino Ticker calls the QF tick mechanism
+static Ticker l_ticker;
+static void onTick() {
+    QF_onClockTick();
+}
+
 enum {
     HIL_TEST_SIG = QS_USER,
-
     COMMAND_TEST_SIG = 123,
+    FIFO_CHECK_TIMER_SIG = MAX_PUB_SUB_SIG,
 };
 
 static bool sensorConfigured = false;
 static uint16_t l_adc;
-// static SemaphoreHandle_t mpuIsrSem;
 
-static uint16_t ADC_read(void) {
-    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-        QS_STR("ADC_read");
-        QS_U16(0, l_adc);
-    QS_END();
-    return l_adc;
+// ==== Temp implementation ====================================================
+// TODO: create real implementation inside sensor module
+
+// DMP data containers
+static mpu6050Quaternion_t q;           // [w, x, y, z]         quaternion container
+static mpu6050VectorFloat_t gravity;    // [x, y, z]            gravity vector
+static float ypr[3];                    // [yaw, pitch, roll]   yaw/pitch/roll container
+/* NOTE: In-memory representation of FIFO inside mpu6050 */
+static uint8_t fifoBuffer[64];
+
+// Periodic FIFO checker AO
+typedef struct {
+    QActive super;
+
+    QTimeEvt timer;
+} FifoCheckerAO;
+
+static FifoCheckerAO l_fifoCheckerAO;
+static QActive* g_fifoCheckerAO = nullptr;
+static QEvt const *fifoCheckerQueueSto[32];
+static QF_MPOOL_EL(QEvt) smallPoolSto[20];
+
+static QState FifoChecker_initial(FifoCheckerAO * const me, QEvt const * const e);
+static QState FifoChecker_active(FifoCheckerAO * const me, QEvt const * const e);
+
+void FifoCheckerAO_ctor(void) {
+    FifoCheckerAO *me = &l_fifoCheckerAO;
+    QActive_ctor(&me->super, Q_STATE_CAST(&FifoChecker_initial));
+    // init timer
+    QTimeEvt_ctorX(&me->timer, &me->super, FIFO_CHECK_TIMER_SIG, 0U);
+
+    g_fifoCheckerAO = &l_fifoCheckerAO.super;
 }
 
-static void ADC_set(uint16_t value) {
-    l_adc = value;
+static QState FifoChecker_initial(FifoCheckerAO * const me, QEvt const * const e) {
+    (void)e;
+    return Q_TRAN(&FifoChecker_active);
 }
 
-static void ADC_DICTIONARY(void) {
-    QS_FUN_DICTIONARY(&ADC_read);
+static QState FifoChecker_active(FifoCheckerAO * const me, QEvt const * const e) {
+    QState rtn;
+    switch (e->sig) {
+        case Q_ENTRY_SIG: {
+            // Arm periodic timer: 1 tick delay, 1 tick interval
+            QTimeEvt_armX(&me->timer, 1U, 1U);
+            QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                QS_STR("PERIODIC_CHECK_STARTED");
+                QS_U32(0, 1U);
+            QS_END();
+
+            rtn = Q_HANDLED();
+            break;
+        }
+        case FIFO_CHECK_TIMER_SIG: {
+            uint16_t count = mpu6050GetFIFOCount();
+            if (count > 0) {
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("PERIODIC_FIFO_CHECK");
+                    QS_U16(0, count);
+                QS_END();
+            } else {
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("PERIODIC_FIFO_CHECK FIFO empty");
+                QS_END();
+            }
+            rtn = Q_HANDLED();
+            break;
+        }
+        default: {
+            rtn = Q_SUPER(&QHsm_top);
+            break;
+        }
+    }
+    return rtn;
+}
+
+// =============================================================================
+
+extern "C" void QF_onClockTick(void) {
+    QTIMEEVT_TICK_X(0U, (void *)0);
+}
+
+static void QS_DICTIONARY(void) {
     QS_OBJ_DICTIONARY(&l_adc);
+
+    // TODO:
+    QS_OBJ_DICTIONARY(&l_fifoCheckerAO.timer); // for tick() inside python script
+
     QS_USR_DICTIONARY(HIL_TEST_SIG);
+
+    QS_ENUM_DICTIONARY(START_PERIODIC_TIMER, QS_CMD);
 }
 
 extern "C" void QS_rx_input(void);
@@ -67,14 +153,22 @@ static void run_test_fixture() {
     QS_USR_DICTIONARY(COMMAND_TEST_SIG);
     QS_USR_DICTIONARY(MPU6050_TEST_SIG);
 
-    ADC_DICTIONARY();
+    QS_DICTIONARY();
     mpu6050_DICTIONARY();
-    QS_GLB_FILTER(QS_ALL_RECORDS);
+    QS_GLB_FILTER(0);
+
+    // TODO: 
+    // AO and Timer setup
+    FifoCheckerAO_ctor();
+    QF_poolInit(smallPoolSto, sizeof(smallPoolSto), sizeof(smallPoolSto[0]));
 
     // This stops the CPU and waits for the Python script to say "Go!".
     // This prevents the target from sending dictionaries
     // before the PC is ready to listen.
     QS_TEST_PAUSE();
+
+    // TODO: 
+    QACTIVE_START(g_fifoCheckerAO, 10U, fifoCheckerQueueSto, Q_DIM(fifoCheckerQueueSto), NULL, 0U, NULL);
 }
 
 void setup() {
@@ -104,8 +198,9 @@ void QS_onCommand(uint8_t cmdId,
         // Test if the HIL system works properly
         case 0U:
             {
-                ADC_set(param1);
-                ADC_read();
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("Smoked!");
+                QS_END();
                 break;
             }
 
@@ -293,6 +388,93 @@ void QS_onCommand(uint8_t cmdId,
                         QS_STR("Interrupt Register:");
                         QS_U8(0, enabled);
                     QS_END();
+                break;
+            }
+
+        // Read DMP YPR
+        case 13U:
+            {
+                // TODO: create real implementation inside sensor module
+
+                if (mpu6050DmpGetCurrentFIFOPacket(fifoBuffer)) {
+                    mpu6050DmpGetQuaternion(&q, fifoBuffer);
+                    mpu6050DmpGetGravity(&gravity, &q);
+                    mpu6050DmpGetYawPitchRoll(ypr, &q, &gravity);
+
+                    if (ypr[0] != 0.0) {
+                        QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                            QS_STR("DMP_YPR is NOT 0");
+                        QS_END();
+                    } else {
+                        QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                            QS_STR("DMP_YPR is 0!");
+                        QS_END();
+                    }
+
+                } else {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("DMP_PACKET_NOT_AVAILABLE");
+                    QS_END();
+                }
+                break;
+            }
+
+        // Get FIFO Count
+        case 14U:
+            {
+                uint16_t count = mpu6050GetFIFOCount();
+                if (count > 0) {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("FIFO_COUNT");
+                        QS_U16(0, count);
+                    QS_END();
+                } else {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("FIFO IS EMPTY");
+                    QS_END();
+                }
+                break;
+            }
+
+        // Toggle periodic check
+        case 15U:
+            {
+                uint32_t interval = param1;
+                if (interval > 0) {
+                    QTimeEvt_armX(&l_fifoCheckerAO.timer, interval, interval);
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("PERIODIC_CHECK_STARTED");
+                        QS_U32(0, interval);
+                    QS_END();
+                } else {
+                    QTimeEvt_disarm(&l_fifoCheckerAO.timer);
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("PERIODIC_CHECK_STOPPED");
+                    QS_END();
+                }
+                break;
+            }
+
+        // Reset FIFO
+        case 16U:
+            {
+                mpu6050ResetFIFO();
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("FIFO_RESET");
+                QS_END();
+                break;
+            }
+
+        // Manual dispatch for background AOs
+        case 17U:
+            {
+                // Dispatch all ready events for l_fifoCheckerAO
+                while (l_fifoCheckerAO.super.eQueue.frontEvt != (QEvt *)0) {
+                    QEvt const *e = QActive_get_(&l_fifoCheckerAO.super);
+                    QHSM_DISPATCH(&l_fifoCheckerAO.super.super, e, 0U);
+                    QF_gc(e);
+                }
+                break;
             }
 
         // wait x ms; semaphore edition
