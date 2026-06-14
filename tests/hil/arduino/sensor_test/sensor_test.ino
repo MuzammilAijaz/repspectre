@@ -127,7 +127,7 @@ static QState FifoChecker_active(FifoCheckerAO * const me, QEvt const * const e)
             uint16_t count = mpu6050GetFIFOCount();
             if (count > 0) {
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
-                    QS_STR("PERIODIC_FIFO_CHECK");
+                    QS_STR("PERIODIC_FIFO_CHECK FIFO count");
                     QS_U16(0, count);
                 QS_END();
             } else {

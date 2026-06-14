@@ -185,7 +185,7 @@ command("CMD_CONFIG_SENSOR")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 tick()
-expect("@timestamp HIL_TEST_SIG PERIODIC_FIFO_CHECK FIFO empty")
+expect("@timestamp HIL_TEST_SIG PERIODIC_FIFO_CHECK FIFO count *")
 expect("@timestamp Trg-Done QS_RX_TICK")
 
 # =============================================================================

@@ -3869,10 +3869,20 @@ void mpu6050DmpConfigure(void)
 
 void mpu6050DmpEnable(void)
 {
-    mpu6050SetFIFOEnabled(true);
-    mpu6050ResetFIFO();
-
+    mpu6050SetFIFOEnabled(false);
     mpu6050ResetDMP();
+    mpu6050ResetFIFO();
+    mpu6050SetFIFOEnabled(true);
+
+    /* Enable DMP output via FIFO and configure which sensor data is stored.
+     * 
+     * NOTE: The FIFO must be explicitly enabled for each data source (accel and gyro axes),
+     * otherwise the DMP will not populate FIFO packets correctly. */
+    mpu6050SetAccelFIFOEnabled(true);
+    mpu6050SetXGyroFIFOEnabled(true);
+    mpu6050SetYGyroFIFOEnabled(true);
+    mpu6050SetZGyroFIFOEnabled(true);
+
     mpu6050SetDMPEnabled(true);
 
     (void)mpu6050GetIntStatus();
