@@ -8,6 +8,10 @@
 #     Trg-Ack (target acknowledges it accepted command)
 #     target executes
 #     Trg-Done (target signals completion)
+# 
+# TODO:
+# -----
+#  - Do something about the timing related tests. they are not reliable.
 #
 #*****************************************************************************
 
@@ -236,10 +240,22 @@ expect("@timestamp HIL_TEST_SIG PERIODIC_FIFO_CHECK FIFO count *")
 expect("@timestamp Trg-Done QS_RX_TICK")
 
 # =============================================================================
-
-test("Timer: FIFO is filling to ")
+test("Timer: FIFO is filling to 512 bytes")
 note( """
-     At a 1 kHz sample rate, it takes : 
+     512 is the limit of the mpu6500 fifo.
+
+     Observations:
+     sec   | fifo
+     0.030 | 384
+     0.035 | 444
+     0.040 | 504
+
+     Timing Calculation:
+     - DMP Packet Size: 42 bytes
+     - DMP Rate: ??? (Observed: 286)
+     - Fill Rate: ??? bytes/sec (Observed: 12,012)
+     - Time to fill 512 bytes: ?? ms (Observed: 0.0426)
+
      """)
 current_obj(OBJ_TE, "l_fifoCheckerAO.timer")
 
@@ -250,7 +266,10 @@ command("CMD_RESET_FIFO")
 expect("@timestamp HIL_TEST_SIG FIFO_RESET")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
-time.sleep(1) # by this time the FIFO should be full
+time.sleep(0.05) # to be safe, this is not reliable
+tick()
+expect("@timestamp HIL_TEST_SIG PERIODIC_FIFO_CHECK FIFO count 512")
+expect("@timestamp Trg-Done QS_RX_TICK")
 
 command("CMD_GET_FIFO_COUNT")
 expect("@timestamp HIL_TEST_SIG FIFO_COUNT 512")
