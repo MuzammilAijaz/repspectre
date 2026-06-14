@@ -15,16 +15,14 @@
 
 extern "C" {
 #include "i2c.h"
-#define ARDUINO_ESP 1
-#define MPU6050_INCLUDE_DMP_MOTIONAPPS20 1 // NOTE: required for enabling DMP!!!
-#define MPU6500
+// #define ARDUINO_ESP 1
 #include "mpu6050.h"
 #include "qpc.h"
 
 #include "sensor_esp32.h"
 #include "i2c_config_esp32.h"
 #include "pub_sub_signals.h"
-
+#include "mpu_config.h"
 }
 
 Q_DEFINE_THIS_FILE

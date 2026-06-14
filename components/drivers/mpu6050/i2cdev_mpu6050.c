@@ -43,6 +43,27 @@
 #include "config.h"
 #define DEBUG_MODULE "MPU6050"
 #include "debug_cf.h"
+#include "mpu_config.h"
+
+// max fifo size
+#ifdef MPU6050
+    #define MPU_MAX_FIFO_SIZE 1024
+#endif
+#ifdef MPU6500
+    #define MPU_MAX_FIFO_SIZE 512
+#endif
+
+// hardware identifier
+#ifdef MPU6500
+// MPU6500: WHO_AM_I register = 0x70
+// Bits [6:1] = 0b111000 = 0x38 → what mpu6050GetDeviceID() returns
+#define MPU6050_WHO_AM_I_VALUE 0x38
+#endif
+#ifdef MPU6050
+// MPU6050: WHO_AM_I register = 0x68
+// Bits [6:1] = 0b110100 = 0x34 → what mpu6050GetDeviceID() returns
+#define MPU6050_WHO_AM_I_VALUE 0x34
+#endif
 
 static uint8_t devAddr;
 static I2C_Dev *I2Cx;
@@ -110,18 +131,6 @@ bool mpu6050Test(void)
 bool mpu6050TestConnection()
 {
     vTaskDelay(M2T(100));
-
-#define MPU6500
-#ifdef MPU6500
-    // MPU6500: WHO_AM_I register = 0x70
-    // Bits [6:1] = 0b111000 = 0x38 → what mpu6050GetDeviceID() returns
-    #define MPU6050_WHO_AM_I_VALUE 0x38
-#endif
-#ifdef MPU6050
-    // MPU6050: WHO_AM_I register = 0x68
-    // Bits [6:1] = 0b110100 = 0x34 → what mpu6050GetDeviceID() returns
-    #define MPU6050_WHO_AM_I_VALUE 0x34
-#endif
 
     // return mpu6050GetDeviceID() == 0b110100; // commented for original reference
     return mpu6050GetDeviceID() == MPU6050_WHO_AM_I_VALUE;
