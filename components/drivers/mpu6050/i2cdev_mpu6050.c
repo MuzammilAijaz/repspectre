@@ -3925,7 +3925,7 @@ uint8_t mpu6050DmpGetCurrentFIFOPacket(uint8_t *data)
         return 1;
     }
 
-    if (fifoCount > 1024) {
+    if (fifoCount > MPU_MAX_FIFO_SIZE) {
         mpu6050ResetFIFO();
         return 2;
     }

@@ -438,6 +438,10 @@ void QS_onCommand(uint8_t cmdId,
                 uint8_t accelFs    = mpu6050GetFullScaleAccelRangeId();
                 uint8_t accelDhpf  = mpu6050GetDHPFMode();
                 uint8_t accelConfig = (accelFs << 3) | accelDhpf;
+                
+                // Register 0x1D is ACCEL_CONFIG_2 on MPU6500
+                uint8_t accelConfig2;
+                i2cdevReadByte(&sensorsBus, MPU6050_DEFAULT_ADDRESS, MPU6050_RA_FF_THR, &accelConfig2);
 
                 uint8_t userCtrl   = (mpu6050GetDMPEnabled() << 7) |
                                      (mpu6050GetFIFOEnabled() << 6) |
@@ -470,6 +474,7 @@ void QS_onCommand(uint8_t cmdId,
                     (mpu6050GetSlave1FIFOEnabled() << 1) |
                     (mpu6050GetSlave0FIFOEnabled() << 0);
 
+                /* Internal firmware event flags inside the DMP */
                 uint8_t dmpIntStatus =
                     (mpu6050GetDMPInt5Status() << 5) |
                     (mpu6050GetDMPInt4Status() << 4) |
@@ -527,6 +532,16 @@ void QS_onCommand(uint8_t cmdId,
                     QS_STR("MPU6050_ACCEL_CONFIG");
                     QS_U8(0, accelConfig);
                 QS_END();
+
+                // ----------------------------------
+#ifdef MPU6500
+                // specific to mpu6500
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_ACCEL_CONFIG_2");
+                    QS_U8(0, accelConfig2);
+                QS_END();
+#endif
+                // ----------------------------------
 
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR("MPU6050_USER_CTRL");

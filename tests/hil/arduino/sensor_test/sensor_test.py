@@ -18,6 +18,12 @@ import math
 MPU_SAMPLE_RATE = 1000
 ADJUSTMENT = -1
 
+class Mpu(IntEnum):
+    MPU6500 = 1
+    MPU6050 = 2
+
+SENSOR_TYPE = Mpu.MPU6500
+
 class RecordType(IntEnum):
     # QS_USER0
     HIL_TEST_SIG     = 100
@@ -103,6 +109,7 @@ note("""
      CONFIG             - decoded DLPF + external sync config
      GYRO_CONFIG        - decoded gyro full-scale config
      ACCEL_CONFIG       - decoded accel full-scale + DHPF config
+     ACCEL_CONFIG_2     - MPU6500: additional filtering control
 
      USER_CTRL          - selected control bits (DMP/FIFO/I2C master)
      PWR_MGMT_1         - decoded power state + clock source
@@ -119,11 +126,16 @@ expect("@timestamp HIL_TEST_SIG MPU6050_INT_STATUS 3")
 expect("@timestamp HIL_TEST_SIG MPU6050_FIFO_ENABLED 1")
 expect("@timestamp HIL_TEST_SIG MPU6050_DMP_ENABLED 1")
 expect("@timestamp HIL_TEST_SIG MPU6050_FIFO_MASK 120")
-expect("@timestamp HIL_TEST_SIG MPU6050_DMP_INT_STATUS 58")
+expect("@timestamp HIL_TEST_SIG MPU6050_DMP_INT_STATUS 1")
 expect("@timestamp HIL_TEST_SIG MPU6050_RATE 0")
 expect("@timestamp HIL_TEST_SIG MPU6050_CONFIG 11")
 expect("@timestamp HIL_TEST_SIG MPU6050_GYRO_CONFIG 24")
 expect("@timestamp HIL_TEST_SIG MPU6050_ACCEL_CONFIG 0")
+
+# MPU6500 specific. Remove if mpu6050 used
+if (SENSOR_TYPE == Mpu.MPU6500):
+    expect("@timestamp HIL_TEST_SIG MPU6050_ACCEL_CONFIG_2 0")
+
 expect("@timestamp HIL_TEST_SIG MPU6050_USER_CTRL 192")
 expect("@timestamp HIL_TEST_SIG MPU6050_PWR_MGMT_1 3")
 expect("@timestamp HIL_TEST_SIG MPU6050_PWR_MGMT_2 0")
@@ -224,4 +236,23 @@ expect("@timestamp HIL_TEST_SIG PERIODIC_FIFO_CHECK FIFO count *")
 expect("@timestamp Trg-Done QS_RX_TICK")
 
 # =============================================================================
-# TODO: confirm that FIFO is NOT 0 after some time...
+
+test("Timer: FIFO is filling to ")
+note( """
+     At a 1 kHz sample rate, it takes : 
+     """)
+current_obj(OBJ_TE, "l_fifoCheckerAO.timer")
+
+command("CMD_CONFIG_SENSOR")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+command("CMD_RESET_FIFO")
+expect("@timestamp HIL_TEST_SIG FIFO_RESET")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+time.sleep(1) # by this time the FIFO should be full
+
+command("CMD_GET_FIFO_COUNT")
+expect("@timestamp HIL_TEST_SIG FIFO_COUNT 512")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
