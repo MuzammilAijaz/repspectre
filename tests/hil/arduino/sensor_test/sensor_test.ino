@@ -558,7 +558,7 @@ void QS_onCommand(uint8_t cmdId,
             {
                 // TODO: create real implementation inside sensor module
 
-                if (mpu6050DmpGetCurrentFIFOPacket(fifoBuffer)) {
+                if (mpu6050DmpGetCurrentFIFOPacket(fifoBuffer) == 0) {
                     mpu6050DmpGetQuaternion(&q, fifoBuffer);
                     mpu6050DmpGetGravity(&gravity, &q);
                     mpu6050DmpGetYawPitchRoll(ypr, &q, &gravity);
