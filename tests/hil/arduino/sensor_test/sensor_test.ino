@@ -43,6 +43,7 @@ enum {
     CMD_RESERVED_10,
     CMD_RESERVED_11,
     CMD_GET_INT_ENABLED,
+    CMD_MPU6050_STATUS_DUMP,
     CMD_READ_DMP_YPR,
     CMD_GET_FIFO_COUNT,
     CMD_TOGGLE_PERIODIC,
@@ -169,6 +170,7 @@ static void QS_DICTIONARY(void) {
     QS_ENUM_DICTIONARY(CMD_DELAY_AND_COUNT, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_TEST_CONNECTION, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_GET_INT_ENABLED, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_MPU6050_STATUS_DUMP, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_READ_DMP_YPR, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_GET_FIFO_COUNT, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_TOGGLE_PERIODIC, QS_CMD);
@@ -417,6 +419,137 @@ void QS_onCommand(uint8_t cmdId,
                         QS_STR("Interrupt Register:");
                         QS_U8(0, enabled);
                     QS_END();
+                break;
+            }
+
+        case CMD_MPU6050_STATUS_DUMP:
+            {
+                uint8_t intEnabled = mpu6050GetIntEnabled();
+                uint8_t intStatus  = mpu6050GetIntStatus();
+                bool fifoEnabled   = mpu6050GetFIFOEnabled();
+                bool dmpEnabled    = mpu6050GetDMPEnabled();
+
+                uint8_t rate       = mpu6050GetRate();
+                uint8_t dlpf       = mpu6050GetDLPFMode();
+                uint8_t extSync    = mpu6050GetExternalFrameSync();
+                uint8_t config     = (extSync << 3) | dlpf;
+
+                uint8_t gyroFs     = mpu6050GetFullScaleGyroRangeId();
+                uint8_t gyroConfig = (gyroFs << 3); 
+
+                uint8_t accelFs    = mpu6050GetFullScaleAccelRangeId();
+                uint8_t accelDhpf  = mpu6050GetDHPFMode();
+                uint8_t accelConfig = (accelFs << 3) | accelDhpf;
+
+                uint8_t userCtrl   = (mpu6050GetDMPEnabled() << 7) |
+                                     (mpu6050GetFIFOEnabled() << 6) |
+                                     (mpu6050GetI2CMasterModeEnabled() << 5);
+
+                uint8_t pwr1       = (!mpu6050GetSleepEnabled() ? 0 : (1 << 6)) |
+                                     (!mpu6050GetWakeCycleEnabled() ? 0 : (1 << 5)) |
+                                     (mpu6050GetTempSensorEnabled() ? 0 : (1 << 3)) |
+                                     (mpu6050GetClockSource() & 0x07);
+
+                uint8_t pwr2       = (mpu6050GetStandbyXAccelEnabled() << 5) |
+                                     (mpu6050GetStandbyYAccelEnabled() << 4) |
+                                     (mpu6050GetStandbyZAccelEnabled() << 3) |
+                                     (mpu6050GetStandbyXGyroEnabled()  << 2) |
+                                     (mpu6050GetStandbyYGyroEnabled()  << 1) |
+                                     (mpu6050GetStandbyZGyroEnabled()  << 0);
+
+                uint8_t intPinCfg  = (mpu6050GetInterruptMode() << 7) |
+                                     (mpu6050GetInterruptDrive() << 6) |
+                                     (mpu6050GetInterruptLatch() << 5) |
+                                     (mpu6050GetInterruptLatchClear() << 4);
+
+                uint8_t fifoMask =
+                    (mpu6050GetTempFIFOEnabled()   << 7) |
+                    (mpu6050GetXGyroFIFOEnabled()  << 6) |
+                    (mpu6050GetYGyroFIFOEnabled()  << 5) |
+                    (mpu6050GetZGyroFIFOEnabled()  << 4) |
+                    (mpu6050GetAccelFIFOEnabled()  << 3) |
+                    (mpu6050GetSlave2FIFOEnabled() << 2) |
+                    (mpu6050GetSlave1FIFOEnabled() << 1) |
+                    (mpu6050GetSlave0FIFOEnabled() << 0);
+
+                uint8_t dmpIntStatus =
+                    (mpu6050GetDMPInt5Status() << 5) |
+                    (mpu6050GetDMPInt4Status() << 4) |
+                    (mpu6050GetDMPInt3Status() << 3) |
+                    (mpu6050GetDMPInt2Status() << 2) |
+                    (mpu6050GetDMPInt1Status() << 1) |
+                    (mpu6050GetDMPInt0Status() << 0);
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_INT_ENABLED");
+                    QS_U8(0, intEnabled);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_INT_STATUS");
+                    QS_U8(0, intStatus);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_FIFO_ENABLED");
+                    QS_U8(0, fifoEnabled);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_DMP_ENABLED");
+                    QS_U8(0, dmpEnabled);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_FIFO_MASK");
+                    QS_U8(0, fifoMask);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_DMP_INT_STATUS");
+                    QS_U8(0, dmpIntStatus);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_RATE");
+                    QS_U8(0, rate);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_CONFIG");
+                    QS_U8(0, config);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_GYRO_CONFIG");
+                    QS_U8(0, gyroConfig);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_ACCEL_CONFIG");
+                    QS_U8(0, accelConfig);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_USER_CTRL");
+                    QS_U8(0, userCtrl);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_PWR_MGMT_1");
+                    QS_U8(0, pwr1);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_PWR_MGMT_2");
+                    QS_U8(0, pwr2);
+                QS_END();
+
+                QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                    QS_STR("MPU6050_INT_PIN_CFG");
+                    QS_U8(0, intPinCfg);
+                QS_END();
+
                 break;
             }
 

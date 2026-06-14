@@ -87,12 +87,47 @@ expect("@timestamp HIL_TEST_SIG Mpu6050 PASSED connection self test")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
-test("Init: MPU6050 interrupt registers enabled as expected")
+test("System: MPU6050 configured as expected")
+note("""
+     MPU6050 status dump (decoded snapshot, not raw registers):
+
+     INT_ENABLED        - enabled interrupt sources (bitmask)
+     INT_STATUS         - active interrupt flags
+     FIFO_ENABLED       - FIFO enable state
+     DMP_ENABLED        - DMP engine state
+     FIFO_MASK          - enabled FIFO data sources (gyro/accel/temp/slaves)
+     DMP_INT_STATUS     - DMP internal interrupt flags
+
+     RATE               - sample rate divider (NOT actual Hz)
+
+     CONFIG             - decoded DLPF + external sync config
+     GYRO_CONFIG        - decoded gyro full-scale config
+     ACCEL_CONFIG       - decoded accel full-scale + DHPF config
+
+     USER_CTRL          - selected control bits (DMP/FIFO/I2C master)
+     PWR_MGMT_1         - decoded power state + clock source
+     PWR_MGMT_2         - axis standby configuration
+     INT_PIN_CFG        - interrupt pin configuration (decoded)
+     """)
+
 command("CMD_CONFIG_SENSOR")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
-command("CMD_GET_INT_ENABLED")
-interruptRegisterInt = bin8_to_int('00010011')
-expect(f"@timestamp HIL_TEST_SIG Interrupt Register: {interruptRegisterInt}")
+
+command("CMD_MPU6050_STATUS_DUMP")
+expect("@timestamp HIL_TEST_SIG MPU6050_INT_ENABLED 19")
+expect("@timestamp HIL_TEST_SIG MPU6050_INT_STATUS 3")
+expect("@timestamp HIL_TEST_SIG MPU6050_FIFO_ENABLED 1")
+expect("@timestamp HIL_TEST_SIG MPU6050_DMP_ENABLED 1")
+expect("@timestamp HIL_TEST_SIG MPU6050_FIFO_MASK 120")
+expect("@timestamp HIL_TEST_SIG MPU6050_DMP_INT_STATUS 58")
+expect("@timestamp HIL_TEST_SIG MPU6050_RATE 0")
+expect("@timestamp HIL_TEST_SIG MPU6050_CONFIG 11")
+expect("@timestamp HIL_TEST_SIG MPU6050_GYRO_CONFIG 24")
+expect("@timestamp HIL_TEST_SIG MPU6050_ACCEL_CONFIG 0")
+expect("@timestamp HIL_TEST_SIG MPU6050_USER_CTRL 192")
+expect("@timestamp HIL_TEST_SIG MPU6050_PWR_MGMT_1 3")
+expect("@timestamp HIL_TEST_SIG MPU6050_PWR_MGMT_2 0")
+expect("@timestamp HIL_TEST_SIG MPU6050_INT_PIN_CFG 224")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
