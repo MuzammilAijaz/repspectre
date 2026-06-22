@@ -176,13 +176,47 @@ TEST(SequencerAOGroup, GivenBooting_WhenBspInitialised_ThenRequestBluetoothIniti
     CHECK_EQUAL(INITIALIZE_BLUETOOTH_SIG, recordedEvent->sig);
 }
 
-// TODO: handle all succesfful initialization and transition.
+TEST(SequencerAOGroup, GivenBooting_WhenOnlyMpuInitialized_ThenRemainInBootingState)
+{
+    using namespace cms::test;
+    startAOAndMoveToBootingState();
+    qf_ctrl::ProcessEvents();
 
-// ==== STATE: Enabled =========================================================
+    auto* e = Q_NEW(QEvt, MPU_INITIALIZED_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    // expect no signal
+    cms::QEvtUniquePtr event = mRecorder->getRecordedEvent();
+    CHECK_TRUE(event == nullptr);
+}
 
+TEST(SequencerAOGroup, GivenBooting_WhenOnlyBluetoothInitialized_ThenRemainInBootingState)
+{
+    using namespace cms::test;
+    startAOAndMoveToBootingState();
+    qf_ctrl::ProcessEvents();
 
-// TODO: handle "CONIFGURED" from sensor and trasition accordingly
-// TODO: handle "CONFIGURED" from bluetooth and transition accordingly
+    auto* e = Q_NEW(QEvt, BLUETOOTH_INITIALIZED_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    // expect no signal
+    cms::QEvtUniquePtr event = mRecorder->getRecordedEvent();
+    CHECK_TRUE(event == nullptr);
+}
+
+// ==== STATE: Operational =====================================================
+
+TEST(SequencerAOGroup, GivenBooting_WhenAllSubsystemsInitialized_ThenMoveToOperationalState)
+{
+    using namespace cms::test;
+    startAOAndMoveToBootingState();
+    qf_ctrl::ProcessEvents();
+
+    auto* e = Q_NEW(QEvt, BLUETOOTH_INITIALIZED_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    auto* e2 = Q_NEW(QEvt, MPU_INITIALIZED_SIG);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+
+    checkRecordedEventSignal(SYSTEM_OPERATIONAL_SIG);
+}
 
 // =============================================================================
 // | Error Handling

@@ -22,6 +22,7 @@ typedef enum PubSubSignal {
 
     // ---- Sequencer ----------------------------------------------
     START_BOOT_SIG,
+    SYSTEM_OPERATIONAL_SIG,
 
     // ---- Bluetooth ----------------------------------------------
     INITIALIZE_BLUETOOTH_SIG,

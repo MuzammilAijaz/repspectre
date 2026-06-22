@@ -18,20 +18,29 @@ typedef enum {
 } BspError_t;
 
 typedef struct {
+    bool sensorReady;
+    bool bluetoothReady;
+} BootState;
+
+typedef struct {
     QActive super;
 
     BspInterface* bsp; // NOTE: pointer; for clear ownership
     BspError_t bspStatus;
 
+    BootState bootState;
+
     const char* bluetoothDeviceName;
     int mtu;
 } SequencerAO;
 
+static bool isBootSequenceDone(const SequencerAO *me);
+
 static QState SequencerAO_initial(SequencerAO *me, void const * par);
 static QState SequencerAO_booting(SequencerAO * me, const QEvt* e);
 static QState SequencerAO_error(SequencerAO * me, const QEvt* e);
+static QState SequencerAO_operational(SequencerAO * me, const QEvt* e);
 // Calibrating
-// Normal/Gathering/Enabled/...
 // Firmware Update
 // Error/Stopped/Idle?
 
@@ -46,6 +55,8 @@ void SequencerAO_ctor(const BspInterface * const bsp) {
     m_instance.bsp = bsp;
     m_instance.bluetoothDeviceName = "dev"; // CAUTION: may cause problems, if low level bluetooth stack hold on to this.
     m_instance.mtu = 500;
+    m_instance.bspStatus = BSP_INIT_ERROR;
+    m_instance.bootState = (BootState) { false, false };
 
     g_sequencerAO = &m_instance.super;
 }
@@ -59,6 +70,8 @@ QState SequencerAO_initial(SequencerAO * const me, void const * const par) {
     Q_UNUSED_PAR(me);
 
     QActive_subscribe(&me->super, START_BOOT_SIG);
+    QActive_subscribe(&me->super, BLUETOOTH_INITIALIZED_SIG);
+    QActive_subscribe(&me->super, MPU_INITIALIZED_SIG);
 
     return Q_TRAN(&SequencerAO_booting);
 }
@@ -89,6 +102,7 @@ QState SequencerAO_booting(SequencerAO * me, const QEvt* e) {
                 SensorAOInitializeMpuRequestEvent * const sensorEvt =
                     Q_NEW(SensorAOInitializeMpuRequestEvent, INITIALIZE_MPU_SIG);
                 // TODO: move config out.
+                // NOTE: ONLY ENABLE_DMP IS ACTUALLY HANDLED!!!
                 sensorEvt->config = (SensorConfig) {
                     .sample_rate_hz = 200,
                     .enable_dmp = true,
@@ -111,6 +125,50 @@ QState SequencerAO_booting(SequencerAO * me, const QEvt* e) {
 
             // QUESTION: should this block also responsible for initializting everything??
             // like SensorAO (thereby also the mpu6050 sensor), BluetoothAO etc..?
+            break;
+        }
+
+        case MPU_INITIALIZED_SIG:
+            {
+                me->bootState.sensorReady = true;
+                if (isBootSequenceDone(me)) {
+                   rtn = Q_TRAN(&SequencerAO_operational);
+                } else {
+                    rtn = Q_HANDLED();
+                }
+                break;
+            }
+
+        case BLUETOOTH_INITIALIZED_SIG:
+            {
+                me->bootState.bluetoothReady = true;
+                if (isBootSequenceDone(me)) {
+                    rtn = Q_TRAN(&SequencerAO_operational);
+                } else {
+                    rtn = Q_HANDLED();
+                }
+                break;
+            }
+
+        default: {
+            rtn = Q_SUPER(&QHsm_top);
+            break;
+        }
+    }
+
+    return rtn;
+}
+
+QState SequencerAO_operational(SequencerAO * me, const QEvt* e) {
+    static const QEvt operationalSig = QEVT_INITIALIZER(SYSTEM_OPERATIONAL_SIG);
+
+    QState rtn;
+
+    switch (e->sig) {
+
+        case Q_ENTRY_SIG: {
+            QF_PUBLISH(&operationalSig, &me->super);
+            rtn = Q_HANDLED();
             break;
         }
 
@@ -145,4 +203,11 @@ QState SequencerAO_error(SequencerAO * me, const QEvt* e) {
     }
 
     return rtn;
+}
+
+//===== Helpers ================================================================
+
+static bool isBootSequenceDone(const SequencerAO *me) {
+    return me->bootState.sensorReady &&
+        me->bootState.bluetoothReady;
 }
