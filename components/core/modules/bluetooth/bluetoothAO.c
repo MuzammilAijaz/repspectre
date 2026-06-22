@@ -142,11 +142,16 @@ QState BluetoothAO_initialized(BluetoothAO * me, const QEvt* e) {
 }
 
 QState BluetoothAO_advertising(BluetoothAO * me, const QEvt* e) {
+    // Advertising state count as disconnected.
+    // TODO: maybe make a super state for advertising : disconnected
+    static const QEvt bluetoothDisconnnected = QEVT_INITIALIZER(BLUETOOTH_DISCONNECTED_SIG);
+
     QState rtn;
 
     switch (e->sig) {
 
         case Q_ENTRY_SIG: {
+            QF_PUBLISH(&bluetoothDisconnnected, &me->super);
             rtn = Q_HANDLED();
             break;
         }

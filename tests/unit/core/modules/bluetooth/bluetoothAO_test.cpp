@@ -227,6 +227,7 @@ TEST(BluetoothAOGroup, GivenAdvertising_WhenDeviceConnected_ThenStopAdvertisingA
     auto* e2 = Q_NEW(QEvt, _DEVICE_CONNECTED_SIG);
     qf_ctrl::PublishAndProcess(e2, mRecorder);
 
+    checkRecordedEventSignal(BLUETOOTH_DISCONNECTED_SIG);
     checkRecordedEventSignal(BLUETOOTH_CONNECTED_SIG);
 }
 
