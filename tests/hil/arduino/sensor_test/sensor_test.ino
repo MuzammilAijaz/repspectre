@@ -49,6 +49,7 @@ enum {
     CMD_MANUAL_DISPATCH,
     CMD_SYSTEM_TICK,
     CMD_FIFO_OVERFLOW_CHECK,
+    CMD_IS_FIFO_FULL,
     TOTAL_CMDS
 };
 
@@ -177,6 +178,7 @@ static void QS_DICTIONARY(void) {
     QS_ENUM_DICTIONARY(CMD_MANUAL_DISPATCH, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_SYSTEM_TICK, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_FIFO_OVERFLOW_CHECK, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_IS_FIFO_FULL, QS_CMD);
 }
 
 extern "C" void QS_rx_input(void);
@@ -576,7 +578,13 @@ void QS_onCommand(uint8_t cmdId,
                     QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                         QS_STR("FIFO_OVERFLOW_DETECTED");
                     QS_END();
+                } else {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("FIFO_OVERFLOW_CLEAR");
+                    QS_END();
                 }
+
+                break;
             }
 
         // Read DMP YPR
@@ -628,9 +636,28 @@ void QS_onCommand(uint8_t cmdId,
         case CMD_RESET_FIFO:
             {
                 mpu6050ResetFIFO();
+                /* clear latched interrupt state
+                 * @see sensor_*.c : mpu6050_init_adapter */
+                (void)mpu6050GetIntStatus();
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR("FIFO_RESET");
                 QS_END();
+                break;
+            }
+
+        case CMD_IS_FIFO_FULL:
+            {
+                uint16_t count = mpu6050GetFIFOCount();
+                if (count >= 512) { // max in mpu6500
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("FIFO is FULL");
+                    QS_U16(0, count);
+                    QS_END();
+                } else {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("FIFO is NOT full");
+                    QS_END();
+                }
                 break;
             }
 

@@ -230,7 +230,7 @@ expect("@timestamp HIL_TEST_SIG DMP_YPR is NOT 0")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
-test("DMP: FIFO overflow is detected")
+test("DMP: FIFO overflow is detected, cleared, and resumes")
 command("CMD_CONFIG_SENSOR")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
@@ -239,6 +239,29 @@ time.sleep(0.2)
 
 command("CMD_FIFO_OVERFLOW_CHECK")
 expect("@timestamp HIL_TEST_SIG FIFO_OVERFLOW_DETECTED")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+command("CMD_IS_FIFO_FULL")
+expect("@timestamp HIL_TEST_SIG FIFO is FULL 512")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+command("CMD_RESET_FIFO")
+expect("@timestamp HIL_TEST_SIG FIFO_RESET")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+command("CMD_FIFO_OVERFLOW_CHECK")
+expect("@timestamp HIL_TEST_SIG FIFO_OVERFLOW_CLEAR")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+command("CMD_IS_FIFO_FULL")
+expect("@timestamp HIL_TEST_SIG FIFO is NOT full")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# Give the DMP a moment to repopulate the FIFO after reset.
+time.sleep(0.05)
+
+command("CMD_READ_DMP_YPR")
+expect("@timestamp HIL_TEST_SIG DMP_YPR is NOT 0")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
