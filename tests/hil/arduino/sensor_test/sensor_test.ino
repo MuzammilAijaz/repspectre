@@ -77,13 +77,6 @@ static uint16_t l_adc;
 // ==== Temp implementation ====================================================
 // TODO: create real implementation inside sensor module
 
-// DMP data containers
-static mpu6050Quaternion_t q;           // [w, x, y, z]         quaternion container
-static mpu6050VectorFloat_t gravity;    // [x, y, z]            gravity vector
-static float ypr[3];                    // [yaw, pitch, roll]   yaw/pitch/roll container
-/* NOTE: In-memory representation of FIFO inside mpu6050 */
-static uint8_t fifoBuffer[64];
-
 // Periodic FIFO checker AO
 typedef struct {
     QActive super;
@@ -610,12 +603,11 @@ void QS_onCommand(uint8_t cmdId,
             {
                 // TODO: create real implementation inside sensor module
 
-                if (mpu6050DmpGetCurrentFIFOPacket(fifoBuffer) == 0) {
-                    mpu6050DmpGetQuaternion(&q, fifoBuffer);
-                    mpu6050DmpGetGravity(&gravity, &q);
-                    mpu6050DmpGetYawPitchRoll(ypr, &q, &gravity);
+                if (1) {
 
-                    if (ypr[0] != 0.0) {
+                    Axis3f* axis = espSensorInterface.Sensor_GetFifo();
+
+                    if (axis->x != 0.0) {
                         QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                             QS_STR("DMP_YPR is NOT 0");
                         QS_END();

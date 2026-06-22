@@ -32,6 +32,13 @@ volatile uint32_t mpuIsrCount = 0;
 
 static void IRAM_ATTR mpuISR(void* arg);
 
+// FIFO stuff
+static mpu6050Quaternion_t q;           // [w, x, y, z]         quaternion container
+static mpu6050VectorFloat_t gravity;    // [x, y, z]            gravity vector
+static float ypr[3];                    // [yaw, pitch, roll]   yaw/pitch/roll container
+/* NOTE: In-memory representation of FIFO inside mpu6050 */
+static uint8_t fifoBuffer[64];
+
 void mpu6050_DICTIONARY(void) {
     QS_FUN_DICTIONARY(&mpuISR);
 }
@@ -306,14 +313,30 @@ static bool mpu6050_readAcc_adapter(Axis3f *acc)
     return true;
 }
 
-static Axis3f* mpu6050_fifo_stub(void)
+static Axis3f* mpu6050_getFifo_adapter(void)
 {
-    return NULL;
+    static Axis3f yprAxis;
+
+    // Read latest complete DMP packet from FIFO
+    if (mpu6050DmpGetCurrentFIFOPacket(fifoBuffer) != 0) {
+        return NULL;
+    }
+
+    // Decode quaternion -> gravity -> yaw/pitch/roll
+    mpu6050DmpGetQuaternion(&q, fifoBuffer);
+    mpu6050DmpGetGravity(&gravity, &q);
+    mpu6050DmpGetYawPitchRoll(ypr, &q, &gravity);
+
+    yprAxis.x = ypr[0];
+    yprAxis.y = ypr[1];
+    yprAxis.z = ypr[2];
+
+    return &yprAxis;
 }
 
 SensorInterface espSensorInterface = {
     .Sensor_init = mpu6050_init_adapter,
-    .Sensor_GetFifo = mpu6050_fifo_stub,
+    .Sensor_GetFifo = mpu6050_getFifo_adapter,
     .Sensor_readGyro = mpu6050_readGyro_adapter,
     .Sensor_readAcc = mpu6050_readAcc_adapter,
 };
