@@ -97,6 +97,7 @@ expect("@timestamp HIL_TEST_SIG Mpu6050 PASSED connection self test")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
+# TODO: expand and verify this.
 test("System: MPU6050 configured as expected")
 note("""
      MPU6050 status dump (decoded snapshot, not raw registers):
@@ -229,6 +230,18 @@ expect("@timestamp HIL_TEST_SIG DMP_YPR is NOT 0")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
+test("DMP: FIFO overflow is detected")
+command("CMD_CONFIG_SENSOR")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# Let the DMP fill the FIFO until it overflows.
+time.sleep(0.2)
+
+command("CMD_FIFO_OVERFLOW_CHECK")
+expect("@timestamp HIL_TEST_SIG FIFO_OVERFLOW_DETECTED")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# =============================================================================
 test("Timer: Periodic FIFO timer is called after a tick")
 current_obj(OBJ_TE, "l_fifoCheckerAO.timer")
 
@@ -275,3 +288,6 @@ command("CMD_GET_FIFO_COUNT")
 expect("@timestamp HIL_TEST_SIG FIFO_COUNT 512")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
+test("Fail")
+
+command("CMD_CONFIG_SENSOR")

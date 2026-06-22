@@ -48,6 +48,7 @@ enum {
     CMD_RESET_FIFO,
     CMD_MANUAL_DISPATCH,
     CMD_SYSTEM_TICK,
+    CMD_FIFO_OVERFLOW_CHECK,
     TOTAL_CMDS
 };
 
@@ -175,6 +176,7 @@ static void QS_DICTIONARY(void) {
     QS_ENUM_DICTIONARY(CMD_RESET_FIFO, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_MANUAL_DISPATCH, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_SYSTEM_TICK, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_FIFO_OVERFLOW_CHECK, QS_CMD);
 }
 
 extern "C" void QS_rx_input(void);
@@ -564,6 +566,17 @@ void QS_onCommand(uint8_t cmdId,
                 QS_END();
 
                 break;
+            }
+
+        case CMD_FIFO_OVERFLOW_CHECK:
+            {
+                uint8_t intStatus = mpu6050GetIntStatus();
+
+                if (intStatus & (1U << MPU6050_INTERRUPT_FIFO_OFLOW_BIT)) {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("FIFO_OVERFLOW_DETECTED");
+                    QS_END();
+                }
             }
 
         // Read DMP YPR
