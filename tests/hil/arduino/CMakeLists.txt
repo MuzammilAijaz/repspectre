@@ -264,6 +264,8 @@ function(add_hil_test TEST_NAME SKETCH_SUBDIR LINK_LIBS)
             --qpc ${QPC_DIR}
             --sketch ${TESTS_DIR}/hil/arduino/${SKETCH_SUBDIR}
             --work-dir ${TEST_WORK_DIR}
+            # TODO: verify if this worked!
+            --qspy-baud 1500000
             # ${ARGN} # Pass remaining python scripts
             ${HIL_TEST_SCRIPTS}
     )
@@ -313,22 +315,22 @@ target_compile_definitions(qp-arduino-port INTERFACE
 # =============================================================================
 # NOTE: Tests run serially
 
-# add_hil_test(sensor_test "sensor_test"
-#     # "platform-arduino;platform-api;i2c;i2cdev-mpu6050" # arduino
-#     "platform-esp32;platform-api;i2c;i2cdev-mpu6050" # esp-idf
-#
-#     TEST_SCRIPTS
-#         "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"
-# )
-
-add_hil_test(sequencer_test "sequencer_test"
-    # platform-arduino for mpu6050 implement on arduino
-    # "qp-arduino-port;sensorAO;platform-arduino;qp-headers;sequencerAO"
-     "qp-arduino-port;hal-api;bluetoothAO;sensorAO;platform-esp32;qp-headers;sequencerAO"
+add_hil_test(sensor_test "sensor_test"
+    # "platform-arduino;platform-api;i2c;i2cdev-mpu6050" # arduino
+    "platform-esp32;sensorAO;module-api;platform-api;i2c;i2cdev-mpu6050" # esp-idf
 
     TEST_SCRIPTS
-        "${TESTS_DIR}/hil/arduino/sequencer_test/sequencer_test.py"
+        "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"
 )
+
+# add_hil_test(sequencer_test "sequencer_test"
+#     # platform-arduino for mpu6050 implement on arduino
+#     # "qp-arduino-port;sensorAO;platform-arduino;qp-headers;sequencerAO"
+#      "qp-arduino-port;hal-api;bluetoothAO;sensorAO;platform-esp32;qp-headers;sequencerAO"
+#
+#     TEST_SCRIPTS
+#         "${TESTS_DIR}/hil/arduino/sequencer_test/sequencer_test.py"
+# )
 
 # add_hil_test(bluetooth_test "bluetooth_test"
 #     "platform-arduino;qp-headers;hal-api"

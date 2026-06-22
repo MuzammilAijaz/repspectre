@@ -115,7 +115,7 @@ QState SensorAO_initialized(SensorAO * me, const QEvt* e) {
             break;
         }
 
-        case MPU_FIFO_FULL: {
+        case MPU_FIFO_FULL: { // from ISR
 
             MpuDataEvent * const mpuDataReadyEvent =
                 Q_NEW(MpuDataEvent, MPU_DATA_READY_SIG);
@@ -127,6 +127,7 @@ QState SensorAO_initialized(SensorAO * me, const QEvt* e) {
             mpuDataReadyEvent->data = data;
 
             // send confirmation of initialization to whole system
+            // TODO: change to QACTIVE_POST after implementing LightInferenceAO
             QF_PUBLISH(&mpuDataReadyEvent->super, &me->super);
 
             rtn = Q_HANDLED();

@@ -20,7 +20,10 @@ fi
 TEST_NAME="$1"
 
 # TODO: refactor this
-BASE_DIR="../../../"
+# Directory where this script lives
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# Project root relative to this script
+BASE_DIR="$(realpath "$SCRIPT_DIR/../../..")"
 PYTHON="python3"
 QUTEST="$HOME/qtools/qutest/qutest.py"
 QSPY="$HOME/qtools/qspy/posix/rel/qspy"
