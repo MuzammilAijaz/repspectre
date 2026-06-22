@@ -126,6 +126,17 @@ TEST_GROUP(SequencerAOGroup)
         qf_ctrl::PublishAndProcess(e, mRecorder);
     }
 
+    void startAOAndMoveToOperationalState(void) {
+        using namespace cms::test;
+        startAOAndMoveToBootingState();
+        auto* btInit = Q_NEW(QEvt, BLUETOOTH_INITIALIZED_SIG);
+        qf_ctrl::PublishAndProcess(btInit, mRecorder);
+        auto* mpuInit = Q_NEW(QEvt, MPU_INITIALIZED_SIG);
+        qf_ctrl::PublishAndProcess(mpuInit, mRecorder);
+        // First event should be the initialization request
+        (void) dummy_bluetoothAO->getRecordedEvent();
+    }
+
 };
 
 TEST(SequencerAOGroup, AOSmokeTest)
@@ -216,6 +227,18 @@ TEST(SequencerAOGroup, GivenBooting_WhenAllSubsystemsInitialized_ThenMoveToOpera
     qf_ctrl::PublishAndProcess(e2, mRecorder);
 
     checkRecordedEventSignal(SYSTEM_OPERATIONAL_SIG);
+}
+
+TEST(SequencerAOGroup, GivenOperational_WhenEnterState_ThenStartAdvertisement)
+{
+    using namespace cms::test;
+    startAOAndMoveToOperationalState();
+
+    // event should be advertisement start
+    auto event = dummy_bluetoothAO->getRecordedEvent();
+
+    CHECK_TRUE(event != nullptr);
+    CHECK_EQUAL(START_ADVERTISEMENT_SIG, event->sig);
 }
 
 // =============================================================================

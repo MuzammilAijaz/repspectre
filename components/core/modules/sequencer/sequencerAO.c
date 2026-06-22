@@ -161,6 +161,7 @@ QState SequencerAO_booting(SequencerAO * me, const QEvt* e) {
 
 QState SequencerAO_operational(SequencerAO * me, const QEvt* e) {
     static const QEvt operationalSig = QEVT_INITIALIZER(SYSTEM_OPERATIONAL_SIG);
+    static const QEvt startAdvSig = QEVT_INITIALIZER(START_ADVERTISEMENT_SIG);
 
     QState rtn;
 
@@ -168,6 +169,10 @@ QState SequencerAO_operational(SequencerAO * me, const QEvt* e) {
 
         case Q_ENTRY_SIG: {
             QF_PUBLISH(&operationalSig, &me->super);
+
+            // start advertisement upon entry to the state
+            QACTIVE_POST(g_bluetoothAO, &startAdvSig, me);
+
             rtn = Q_HANDLED();
             break;
         }
