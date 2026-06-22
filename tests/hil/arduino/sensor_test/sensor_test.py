@@ -265,6 +265,19 @@ expect("@timestamp HIL_TEST_SIG DMP_YPR is NOT 0")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
+test("DMP: FIFO overflow causes the isr to run")
+
+command("CMD_CONFIG_SENSOR")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# Allow FIFO to fill and overflow.
+time.sleep(0.2)
+
+command("CMD_FIFO_OVERFLOW_CAUSE_INTERRUPT_CHECK")
+expect("@timestamp HIL_TEST_SIG Interrupt happened")
+expect("@timestamp Trg-Done QS_RX_COMMAND")
+
+# =============================================================================
 test("Timer: Periodic FIFO timer is called after a tick")
 current_obj(OBJ_TE, "l_fifoCheckerAO.timer")
 

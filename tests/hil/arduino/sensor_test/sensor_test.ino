@@ -19,6 +19,8 @@ extern "C" {
 #include "mpu6050.h"
 #include "qpc.h"
 
+#include "sensorAO.h" // for interrupt to publish signal to g_sensorAO
+
 #include "sensor_esp32.h"
 #include "i2c_config_esp32.h"
 #include "pub_sub_signals.h"
@@ -50,6 +52,7 @@ enum {
     CMD_SYSTEM_TICK,
     CMD_FIFO_OVERFLOW_CHECK,
     CMD_IS_FIFO_FULL,
+    CMD_FIFO_OVERFLOW_CAUSE_INTERRUPT_CHECK,
     TOTAL_CMDS
 };
 
@@ -179,6 +182,7 @@ static void QS_DICTIONARY(void) {
     QS_ENUM_DICTIONARY(CMD_SYSTEM_TICK, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_FIFO_OVERFLOW_CHECK, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_IS_FIFO_FULL, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_FIFO_OVERFLOW_CAUSE_INTERRUPT_CHECK, QS_CMD);
 }
 
 extern "C" void QS_rx_input(void);
@@ -391,6 +395,20 @@ void QS_onCommand(uint8_t cmdId,
 
                     sensorConfigured = false;
                 }
+                break;
+            }
+
+        case CMD_FIFO_OVERFLOW_CAUSE_INTERRUPT_CHECK:
+            {
+                Spy_checkLatestMpuISR();
+                bool flag = Spy_getFifoOverflowIsrOccured();
+
+                if (flag) {
+                    QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+                        QS_STR("Interrupt happened");
+                    QS_END();
+                }
+
                 break;
             }
 

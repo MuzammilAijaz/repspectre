@@ -317,7 +317,7 @@ target_compile_definitions(qp-arduino-port INTERFACE
 
 add_hil_test(sensor_test "sensor_test"
     # "platform-arduino;platform-api;i2c;i2cdev-mpu6050" # arduino
-    "platform-esp32;module-api;platform-api;i2c;i2cdev-mpu6050" # esp-idf
+    "platform-esp32;sensorAO;module-api;platform-api;i2c;i2cdev-mpu6050" # esp-idf
 
     TEST_SCRIPTS
         "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"

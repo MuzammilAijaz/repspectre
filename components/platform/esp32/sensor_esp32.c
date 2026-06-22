@@ -4,7 +4,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
+#include "pub_sub_signals.h"
 #include "qsafe.h"
+#include "qp.h"
 #include "sensor.h"
 #include "mpu6050.h"
 #include "i2c.h"
@@ -17,9 +19,14 @@ Q_DEFINE_THIS_MODULE("SensorEsp32")
 #define OPEN_DRAIN 1
 #define CLOSE_DRAIN 0
 
+//--------------------------------------------------------------
+#define HIL_TEST 1
+//--------------------------------------------------------------
+
 static I2cDrv* i2c = NULL;
 volatile bool mpuSampleReadyFlagWasSet = false;
 volatile bool mpuIsrOccurred = false;
+volatile bool fifoOverflowIsrOccured = false;
 static SemaphoreHandle_t* mpuIsrSem = NULL;
 volatile uint32_t mpuIsrCount = 0;
 
@@ -100,24 +107,48 @@ void Spy_checkLatestMpuISR(void) {
             QS_STR("I2C ERROR");
         QS_END();
     }
-    else if (status & (1 << MPU6050_INTERRUPT_DATA_RDY_BIT)) {
+    if (status & (1 << MPU6050_INTERRUPT_DATA_RDY_BIT)) {
         mpuSampleReadyFlagWasSet = true;
     }
-    // else if (status & (1 << MPU6050_INTERRUPT_DATA_RDY_BIT)) {
-    //     mpuSampleReadyFlagWasSet = true;
-    // }
+    if (status & (1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT)) {
+        fifoOverflowIsrOccured = true;
+    }
 }
 
 void Spy_setI2cDriver(I2cDrv* i2c_driver) {
     i2c = i2c_driver;
 }
 
+bool Spy_getFifoOverflowIsrOccured() {
+    return fifoOverflowIsrOccured;
+}
+
 // =============================================================================
+
+extern QActive* g_sensorAO;
 
 static void IRAM_ATTR mpuISR(void* arg) {
     (void) arg;
+
+    //----- DEBUG --------------------------------------------------
     mpuIsrOccurred = true;
     mpuIsrCount++;
+    //--------------------------------------------------------------
+
+    // HIL-TEST-NOTE: running this block messes up with qp trace stream
+    // RESEARCH: is it right to publish and get status from isr???
+#if !HIL_TEST
+    uint8_t status = mpu6050GetIntStatus();
+
+    // FIFO overflow interrupt
+    if (status & (1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT)) {
+        //----- DEBUG --------------------------------------------------
+        fifoOverflowIsrOccured = true;
+        //--------------------------------------------------------------
+        static const QEvt fifoFull = QEVT_INITIALIZER(MPU_FIFO_FULL);
+        QF_PUBLISH(&fifoFull, g_sensorAO);
+    }
+#endif
 }
 
 // ASSUMPTION: DLPF is enabled and base clock is 1khz

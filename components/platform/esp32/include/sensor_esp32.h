@@ -25,6 +25,7 @@ void Spy_checkLatestMpuISR(void);
 bool Spy_getSampleReadyFlag(void);
 void Spy_resetSampleReadyFlag(void);
 void Spy_setMpuIsrSemaphore(SemaphoreHandle_t* sem);
+bool Spy_getFifoOverflowIsrOccured();
 uint32_t Spy_incrementSampleReadyFlagCount(void);
 uint32_t Spy_getSampleReadyFlagCount(void);
 uint32_t Spy_getIsrCount(void);
