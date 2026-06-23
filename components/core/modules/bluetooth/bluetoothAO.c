@@ -6,6 +6,7 @@
 
 #include "pub_sub_signals.h"
 #include "bluetooth.h"
+#include "bluetooth_runtime.h"
 
 Q_DEFINE_THIS_MODULE("BluetoothAO")
 
@@ -16,6 +17,7 @@ typedef struct {
     BluetoothConfig* config;
 
     BluetoothStatus status;
+    QTimeEvt pollEvt;
 } BluetoothAO;
 
 static QState BluetoothAO_initial(BluetoothAO *me, void const * par);
@@ -36,6 +38,13 @@ void BluetoothAO_ctor(const BluetoothInterface * const bluetooth) {
     QActive_ctor(&m_instance.super, Q_STATE_CAST(BluetoothAO_initial));
     m_instance.bluetooth = bluetooth;
 
+    QTimeEvt_ctorX(
+        &m_instance.pollEvt,
+        &m_instance.super,
+        BLUETOOTH_POLL_SIG,
+        0U
+    );
+
     g_bluetoothAO = &m_instance.super;
 }
 
@@ -49,8 +58,6 @@ QState BluetoothAO_initial(BluetoothAO * const me, void const * const par) {
     QActive_subscribe(&me->super, INITIALIZE_BLUETOOTH_SIG);
     QActive_subscribe(&me->super, START_ADVERTISEMENT_SIG);
     QActive_subscribe(&me->super, BLUETOOTH_SEND_DATA_SIG);
-    QActive_subscribe(&me->super, _DEVICE_CONNECTED_SIG);
-    QActive_subscribe(&me->super, _DEVICE_DISCONNECTED_SIG);
 
     return Q_TRAN(&BluetoothAO_uninitialized);
 }
@@ -114,6 +121,8 @@ QState BluetoothAO_initialized(BluetoothAO * me, const QEvt* e) {
             break;
         }
 
+        // FIXME: if this signal is given out when inside BluetoothAO_connected(its substate), it would start advertisement
+        // so move it to disconnected super state
         case START_ADVERTISEMENT_SIG: {
             bool success = me->bluetooth->start_advertising();
 
@@ -124,11 +133,6 @@ QState BluetoothAO_initialized(BluetoothAO * me, const QEvt* e) {
             else {
                 rtn = Q_TRAN(&BluetoothAO_advertising);
             }
-            break;
-        }
-
-        case _DEVICE_CONNECTED_SIG: {
-            rtn = Q_TRAN(&BluetoothAO_connected);
             break;
         }
 
@@ -152,14 +156,24 @@ QState BluetoothAO_advertising(BluetoothAO * me, const QEvt* e) {
 
         case Q_ENTRY_SIG: {
             QF_PUBLISH(&bluetoothDisconnnected, &me->super);
+            QTimeEvt_armX(&me->pollEvt, 1U, 1U); // periodic timer
             rtn = Q_HANDLED();
             break;
         }
 
-        case _DEVICE_CONNECTED_SIG: {
-            // stop advertising and move to connected state
-            me->bluetooth->stop_advertising();
-            rtn = Q_TRAN(&BluetoothAO_connected);
+        case Q_EXIT_SIG: {
+            QTimeEvt_disarm(&me->pollEvt);
+            rtn = Q_HANDLED();
+            break;
+        }
+
+        case BLUETOOTH_POLL_SIG: {
+            if (g_bluetooth_runtime.connected) {
+                rtn = Q_TRAN(&BluetoothAO_connected);
+            }
+            else {
+                rtn = Q_HANDLED();
+            }
             break;
         }
 
@@ -181,7 +195,13 @@ QState BluetoothAO_connected(BluetoothAO * me, const QEvt* e) {
 
         case Q_ENTRY_SIG: {
             QF_PUBLISH(&bluetoothConnected, &me->super);
+            QTimeEvt_armX(&me->pollEvt, 1U, 1U); // periodic timer
+            rtn = Q_HANDLED();
+            break;
+        }
 
+        case Q_EXIT_SIG: {
+            QTimeEvt_disarm(&me->pollEvt);
             rtn = Q_HANDLED();
             break;
         }
@@ -194,14 +214,12 @@ QState BluetoothAO_connected(BluetoothAO * me, const QEvt* e) {
             break;
         }
 
-        case _DEVICE_DISCONNECTED_SIG: {
-            bool success = me->bluetooth->start_advertising();
-            if (success) {
+        case BLUETOOTH_POLL_SIG: {
+            if (!g_bluetooth_runtime.connected) {
                 rtn = Q_TRAN(&BluetoothAO_advertising);
             }
             else {
-                me->status = ERR_BLUETOOTH_ADV_START;
-                rtn = Q_TRAN(&BluetoothAO_error);
+                rtn = Q_HANDLED();
             }
             break;
         }

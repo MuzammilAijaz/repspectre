@@ -1,3 +1,12 @@
+///*****************************************************************************
+/// Bluetooth (Nimble) port for esp-idf
+///-----------------------------------------------------------------------------
+///
+/// nimble_port_freertos_init() - starts a FreeRTOS task, which runs a never
+/// ending loop inside : nimble_port_run()
+///
+///*****************************************************************************
+
 #include <string.h>
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
@@ -20,6 +29,7 @@
 #include "esp_bt.h" // for esp_bt_controller_get_status()
 
 #include "qpc.h"
+#include "bluetooth_runtime.h"
 
 Q_DEFINE_THIS_MODULE("BluetoothEsp")
 enum {
@@ -434,6 +444,8 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg) {
     switch (event->type) {
         case BLE_GAP_EVENT_CONNECT:
             if (event->connect.status == 0) {
+                g_bluetooth_runtime.connected = true;
+                g_bluetooth_runtime.advertising = false;
                 is_advertising_active = false;
                 trace_peer(event->connect.conn_handle,
                         "ServerCallbacks::onConnect - Client connected: ");
@@ -452,6 +464,8 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg) {
             break;
 
         case BLE_GAP_EVENT_DISCONNECT:
+            g_bluetooth_runtime.connected = false;
+            g_bluetooth_runtime.advertising = true;
             /* CRITICAL RESILIENCE: Automated Self-Healing. Re-advertise instantly on client disconnection */
             trace_bt("ServerCallbacks::onDisconnect - Client disconnected, start advertising");
             if (!is_advertising_active) {

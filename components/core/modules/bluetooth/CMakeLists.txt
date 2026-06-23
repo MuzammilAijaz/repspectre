@@ -2,6 +2,7 @@ add_library(bluetoothAO INTERFACE)
 
 target_sources(bluetoothAO INTERFACE
     bluetoothAO.c
+    bluetooth_runtime.c
 )
 
 # Public API

@@ -1,5 +1,6 @@
 from enum import IntEnum
 import asyncio
+import time
 
 from host.ble_controller import BLEHost
 
@@ -60,7 +61,16 @@ expect("@timestamp Trg-Done QS_RX_EVENT")
 
 #==============================================================================
 test("OPERATIONAL: BLE host connects and sequencer transitions to\
- CONNECTED state", NORESET)
+ CONNECTED state")
+
+post("START_BOOT_SIG")
+expect("@timestamp HIL_TEST_SIG sensor init requested")
+expect("@timestamp HIL_TEST_SIG bluetooth init requested")
+expect("@timestamp HIL_TEST_SIG sensor initialized")
+expect("@timestamp HIL_TEST_SIG bluetooth initialized")
+expect("@timestamp HIL_TEST_SIG advertisement requested")
+expect("@timestamp HIL_TEST_SIG bluetooth disconnected")
+expect("@timestamp Trg-Done QS_RX_EVENT")
 
 # Connect host to real target
 # ---------------------------
@@ -82,6 +92,8 @@ print("Total time:", total_time)
 if total_time > TOTAL_TIME_TO_CONNECT:
     expect(f"FAIL: Time greater than {TOTAL_TIME_TO_CONNECT}")
 
+time.sleep(2.0)
+
 # Expectations
 # ------------
-expect( f"@timestamp HIL_TEST_SIG bluetooth connected")
+expect("@timestamp HIL_TEST_SIG bluetooth connected")

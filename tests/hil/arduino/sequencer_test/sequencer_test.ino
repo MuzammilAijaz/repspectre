@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Ticker.h>
 
 extern "C" {
 #include "qpc.h"
@@ -7,6 +8,7 @@ extern "C" {
 #include "pub_sub_signals.h"
 #include "sensorAO.h"
 #include "bluetoothAO.h"
+#include "bluetooth_runtime.h"
 #include "BSP.h"
 #include "qs_port.h"
 
@@ -42,6 +44,12 @@ enum {
 enum {
     HIL_TEST_SIG = QS_USER,
 };
+
+// for timers
+Ticker l_ticker;
+static void onTick() {
+    QF_onClockTick();
+}
 
 // ---- Dynamic event storage/pool -----------------------------
 // private storage (for normal QEvt events) for creation of events,
@@ -164,6 +172,7 @@ static void run_test_fixture() {
 }
 
 void setup() {
+    l_ticker.attach_ms(1, onTick);
     pinMode(LED_BUILTIN, OUTPUT);
 
     run_test_fixture();
@@ -291,4 +300,7 @@ void QS_onTestPost(void const *sender,
             QS_STR("bluetooth disconnected");
         QS_END();
     }
+}
+extern "C" void QF_onClockTick(void) {
+    QF_TICK_X(0U, (void *)0);
 }

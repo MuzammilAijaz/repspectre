@@ -10,6 +10,7 @@
 #include "bluetoothAO.h"
 #include "pub_sub_signals.h"
 #include "Mock_Bluetooth.hpp"
+#include "bluetooth_runtime.h"
 
 #include "unit_test_utils.hpp"
 
@@ -191,26 +192,11 @@ TEST(BluetoothAOGroup, GivenInitialized_WhenAdvertisementStartFailed_ThenMoveToE
 }
 
 // move to conencted state on connection establishment with max/min 1 client
-TEST(BluetoothAOGroup, GivenInitialized_WhenDriverReportsDeviceConnected_ThenPublishBluetoothConnected) {
+TEST(BluetoothAOGroup, GivenAdvertising_WhenDeviceConnected_ThenPublishBluetoothConnected) {
     using namespace cms::test;
 
-    startAOAndMoveToInitializedState(validConfig);
-
-    /**
-     * DEVICE_CONNECTED_SIG is emitted by the low-level driver stack,
-     * while BLUETOOTH_CONNECTED_SIG is emitted after BluetoothAO updates
-     * its internal state.
-     *
-     * This prevents higher-level AOs (e.g. SequencerAO) from reacting
-     * before BluetoothAO is fully synchronized.
-     */
-    auto* e1 = Q_NEW(QEvt, _DEVICE_CONNECTED_SIG);
-    qf_ctrl::PublishAndProcess(e1, mRecorder);
-    checkRecordedEventSignal(BLUETOOTH_CONNECTED_SIG);
-}
-
-TEST(BluetoothAOGroup, GivenAdvertising_WhenDeviceConnected_ThenStopAdvertisingAndPublishBluetoothConnected) {
-    using namespace cms::test;
+    g_bluetooth_runtime.connected = false;
+    g_bluetooth_runtime.advertising = false;
 
     startAOAndMoveToInitializedState(validConfig);
 
@@ -219,43 +205,58 @@ TEST(BluetoothAOGroup, GivenAdvertising_WhenDeviceConnected_ThenStopAdvertisingA
         .andReturnValue(true);
     auto* e1 = Q_NEW(QEvt, START_ADVERTISEMENT_SIG);
     qf_ctrl::PublishAndProcess(e1, mRecorder);
+    checkRecordedEventSignal(BLUETOOTH_DISCONNECTED_SIG);
 
     // Now in advertising state.
-    // When _DEVICE_CONNECTED_SIG received, expect stop_advertising
-    mock().expectOneCall("bluetooth_stop_advertising")
-        .andReturnValue(true);
-    auto* e2 = Q_NEW(QEvt, _DEVICE_CONNECTED_SIG);
-    qf_ctrl::PublishAndProcess(e2, mRecorder);
-
-    checkRecordedEventSignal(BLUETOOTH_DISCONNECTED_SIG);
+    g_bluetooth_runtime.connected = true;
+    qf_ctrl::MoveTimeForward(std::chrono::milliseconds(5));
     checkRecordedEventSignal(BLUETOOTH_CONNECTED_SIG);
 }
 
-TEST(BluetoothAOGroup, GivenConnected_WhenDeviceDisconnected_ThenStartAdvertisingAndMoveToAdvertisingState) {
+TEST(BluetoothAOGroup, GivenConnected_WhenDeviceDisconnected_ThenMoveToAdvertisingStateAndPublishBluetoothDisconnected) {
     using namespace cms::test;
+
+    g_bluetooth_runtime.connected = false;
+    g_bluetooth_runtime.advertising = false;
 
     startAOAndMoveToInitializedState(validConfig);
 
-    // move to connected state
-    auto* e1 = Q_NEW(QEvt, _DEVICE_CONNECTED_SIG);
-    qf_ctrl::PublishAndProcess(e1, mRecorder);
-    checkRecordedEventSignal(BLUETOOTH_CONNECTED_SIG);
-
-    // Now in connected state.
+    // move to advertising state
     mock().expectOneCall("bluetooth_start_advertising")
         .andReturnValue(true);
-    auto* e2 = Q_NEW(QEvt, _DEVICE_DISCONNECTED_SIG);
-    qf_ctrl::PublishAndProcess(e2, mRecorder);
+    auto* e1 = Q_NEW(QEvt, START_ADVERTISEMENT_SIG);
+    qf_ctrl::PublishAndProcess(e1, mRecorder);
+    checkRecordedEventSignal(BLUETOOTH_DISCONNECTED_SIG);
+
+    // Poll connection to move to connected state
+    g_bluetooth_runtime.connected = true;
+    qf_ctrl::MoveTimeForward(std::chrono::milliseconds(5));
+    checkRecordedEventSignal(BLUETOOTH_CONNECTED_SIG);
+
+    // Now in connected state, set connected to false to simulate disconnect
+    g_bluetooth_runtime.connected = false;
+    qf_ctrl::MoveTimeForward(std::chrono::milliseconds(5));
+    checkRecordedEventSignal(BLUETOOTH_DISCONNECTED_SIG);
 }
 
 TEST(BluetoothAOGroup, GivenConnected_WhenSendDataReceived_ThenSendNotificiations) {
     using namespace cms::test;
 
+    g_bluetooth_runtime.connected = false;
+    g_bluetooth_runtime.advertising = false;
+
     startAOAndMoveToInitializedState(validConfig);
 
-    // move to connected state
-    auto* eConn = Q_NEW(QEvt, _DEVICE_CONNECTED_SIG);
-    qf_ctrl::PublishAndProcess(eConn, mRecorder);
+    // move to advertising state
+    mock().expectOneCall("bluetooth_start_advertising")
+        .andReturnValue(true);
+    auto* e1 = Q_NEW(QEvt, START_ADVERTISEMENT_SIG);
+    qf_ctrl::PublishAndProcess(e1, mRecorder);
+    checkRecordedEventSignal(BLUETOOTH_DISCONNECTED_SIG);
+
+    // Poll connection to move to connected state
+    g_bluetooth_runtime.connected = true;
+    qf_ctrl::MoveTimeForward(std::chrono::milliseconds(5));
     checkRecordedEventSignal(BLUETOOTH_CONNECTED_SIG);
 
     mock().expectOneCall("bluetooth_notify")
@@ -268,6 +269,9 @@ TEST(BluetoothAOGroup, GivenConnected_WhenSendDataReceived_ThenSendNotificiation
 // might remove
 TEST(BluetoothAOGroup, GivenAdvertising_WhenSendDataReceived_ThenIgnoreSignal) {
     using namespace cms::test;
+
+    g_bluetooth_runtime.connected = false;
+    g_bluetooth_runtime.advertising = false;
 
     startAOAndMoveToInitializedState(validConfig);
 
