@@ -10,11 +10,15 @@
 #include "nimble/nimble_port_freertos.h"
 #include "host/ble_hs.h"
 #include "host/util/util.h"
+#include "qp.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 
+// core includes
 #include "bluetooth_esp.h"
 #include "BSP_esp.h"
+#include "pub_sub_signals.h"
+
 #include "soc/soc_caps.h" // for SOC_BT_SUPPORTED
 
 #include "esp_bt.h" // for esp_bt_controller_get_status()
@@ -33,6 +37,7 @@ static void trace_bt(const char* msg) {
     QS_END();
 }
 
+extern QActive* g_bluetoothAO; // for posting; i.e. connected/disconnected..
 static uint8_t own_addr_type = 0;
 
 // ---- Async BLE state flags ----------------------------------
@@ -444,6 +449,18 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg) {
                         .latency = 0,
                         .supervision_timeout = 180,
                         });
+
+                // QEvt *e = Q_NEW(QEvt, _DEVICE_CONNECTED_SIG);
+
+                // QACTIVE_POST(g_bluetoothAO, e, 0);
+
+                // // Send signal to bluetoothAO
+                // static const QEvt connectedEvt = QEVT_INITIALIZER(_DEVICE_CONNECTED_SIG);
+                // // QACTIVE_POST(g_bluetoothAO, &connectedEvt, 0); // CAUTION: 0 because the sender is not an AO
+                static QSpyId const l_ble_gap_isr = { 0U };
+                // QF_PUBLISH(e, &l_ble_gap_isr); // CAUTION: 0 because the sender is not an AO
+                static const QEvt connectedEvt = QEVT_INITIALIZER(_DEVICE_CONNECTED_SIG);
+                QF_PUBLISH(&connectedEvt, &l_ble_gap_isr);
             }
             if (event->connect.status != 0 && is_advertising_active) {
                 /* Connection attempt aborted or failed; self-heal and auto-resume advertising */
