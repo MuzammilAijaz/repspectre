@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
 #include "esp_log.h"
@@ -41,9 +40,11 @@ static void trace_bt(const char* msg) {
 extern QActive* g_bluetoothAO; // for posting; i.e. connected/disconnected..
 static uint8_t own_addr_type = 0;
 
-static StaticQueue_t s_ble_edge_queue_storage;
 static BluetoothEspEdgeSignal s_ble_edge_queue_buffer[8];
-static QueueHandle_t s_ble_edge_queue = NULL;
+static portMUX_TYPE s_ble_edge_queue_lock = portMUX_INITIALIZER_UNLOCKED;
+static uint8_t s_ble_edge_queue_head = 0U;
+static uint8_t s_ble_edge_queue_tail = 0U;
+static uint8_t s_ble_edge_queue_count = 0U;
 
 // ---- Async BLE state flags ----------------------------------
 // Tracks BLE stack state shared across callbacks and application
@@ -90,19 +91,39 @@ static bool Bluetooth_start_advertising(void);
 static bool Bluetooth_enqueue_edge(BluetoothEspEdgeSignal edge);
 
 static bool Bluetooth_enqueue_edge(BluetoothEspEdgeSignal edge) {
-    if (s_ble_edge_queue == NULL) {
-        return false;
-    }
+    bool success = false;
 
-    return (xQueueSend(s_ble_edge_queue, &edge, 0U) == pdPASS);
+    taskENTER_CRITICAL(&s_ble_edge_queue_lock);
+    if (s_ble_edge_queue_count < (uint8_t)(sizeof(s_ble_edge_queue_buffer) / sizeof(s_ble_edge_queue_buffer[0]))) {
+        s_ble_edge_queue_buffer[s_ble_edge_queue_head] = edge;
+        s_ble_edge_queue_head =
+            (uint8_t)((s_ble_edge_queue_head + 1U) % (uint8_t)(sizeof(s_ble_edge_queue_buffer) / sizeof(s_ble_edge_queue_buffer[0])));
+        ++s_ble_edge_queue_count;
+        success = true;
+    }
+    taskEXIT_CRITICAL(&s_ble_edge_queue_lock);
+
+    return success;
 }
 
 bool BluetoothEsp_dequeueEdge(BluetoothEspEdgeSignal *outEdge) {
-    if ((s_ble_edge_queue == NULL) || (outEdge == NULL)) {
+    if (outEdge == NULL) {
         return false;
     }
 
-    return (xQueueReceive(s_ble_edge_queue, outEdge, 0U) == pdPASS);
+    bool success = false;
+
+    taskENTER_CRITICAL(&s_ble_edge_queue_lock);
+    if (s_ble_edge_queue_count > 0U) {
+        *outEdge = s_ble_edge_queue_buffer[s_ble_edge_queue_tail];
+        s_ble_edge_queue_tail =
+            (uint8_t)((s_ble_edge_queue_tail + 1U) % (uint8_t)(sizeof(s_ble_edge_queue_buffer) / sizeof(s_ble_edge_queue_buffer[0])));
+        --s_ble_edge_queue_count;
+        success = true;
+    }
+    taskEXIT_CRITICAL(&s_ble_edge_queue_lock);
+
+    return success;
 }
 
 /* --- Official GATT Service Definition Array Table --- */
@@ -252,15 +273,11 @@ static bool Bluetooth_init_adapter(BluetoothConfig config) {
     int rc = nimble_port_init();
     if (rc != ESP_OK) return false;
 
-    if (s_ble_edge_queue == NULL) {
-        s_ble_edge_queue = xQueueCreateStatic(
-            Q_DIM(s_ble_edge_queue_buffer),
-            sizeof(BluetoothEspEdgeSignal),
-            (uint8_t *)s_ble_edge_queue_buffer,
-            &s_ble_edge_queue_storage
-        );
-        Q_ASSERT(s_ble_edge_queue != NULL);
-    }
+    taskENTER_CRITICAL(&s_ble_edge_queue_lock);
+    s_ble_edge_queue_head = 0U;
+    s_ble_edge_queue_tail = 0U;
+    s_ble_edge_queue_count = 0U;
+    taskEXIT_CRITICAL(&s_ble_edge_queue_lock);
 
     // ---- Setup Callbacks ----------------------------------------
     ble_hs_cfg.reset_cb = on_stack_reset;

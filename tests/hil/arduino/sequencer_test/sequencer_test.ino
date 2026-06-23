@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Ticker.h>
 
 extern "C" {
 #include "qpc.h"
@@ -29,6 +30,13 @@ extern "C" {
 }
 
 Q_DEFINE_THIS_FILE
+
+extern "C" void QF_onClockTick(void);
+
+static Ticker l_ticker;
+static void onTick() {
+    QF_onClockTick();
+}
 
 extern "C" char const Q_BUILD_DATE[] = __DATE__;
 extern "C" char const Q_BUILD_TIME[] = __TIME__;
@@ -79,6 +87,7 @@ static void QS_userDictionaries(void) {
     QS_SIG_DICTIONARY(START_ADVERTISEMENT_SIG, NULL);
     QS_SIG_DICTIONARY(BLUETOOTH_CONNECTED_SIG, NULL);
     QS_SIG_DICTIONARY(BLUETOOTH_DISCONNECTED_SIG, NULL);
+    QS_SIG_DICTIONARY(BLUETOOTH_POLL_SIG, NULL);
 
     QS_OBJ_DICTIONARY(g_sequencerAO);
     QS_OBJ_DICTIONARY(g_sensorAO);
@@ -168,7 +177,13 @@ void setup() {
 
     run_test_fixture();
 
+    l_ticker.attach_ms(1U, onTick);
+
     return (void)QF_run();
+}
+
+extern "C" void QF_onClockTick(void) {
+    QTIMEEVT_TICK_X(0U, (void *)0);
 }
 
 void loop() {

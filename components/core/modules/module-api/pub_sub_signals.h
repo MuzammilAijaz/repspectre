@@ -31,6 +31,7 @@ typedef enum PubSubSignal {
     BLUETOOTH_CONNECTED_SIG,
     BLUETOOTH_DISCONNECTED_SIG,
     BLUETOOTH_SEND_DATA_SIG,
+    BLUETOOTH_POLL_SIG,
 
     // Driver level signals
     _DEVICE_CONNECTED_SIG,

@@ -31,10 +31,6 @@
 #include <Arduino.h>
 
 extern "C" {
-#include "bluetoothAO.h"
-#include "bluetooth_esp.h"
-#include "pub_sub_signals.h"
-
 void QS_processTestEvts_(void);
 }
 
@@ -184,23 +180,6 @@ void QS_onFlush(void) {
 void QS_onTestLoop() {
     QS_rxPriv_.inTestLoop = true;
     while (QS_rxPriv_.inTestLoop) {
-        static const QEvt connectedEvt = QEVT_INITIALIZER(_DEVICE_CONNECTED_SIG);
-        static const QEvt disconnectedEvt = QEVT_INITIALIZER(_DEVICE_DISCONNECTED_SIG);
-
-        BluetoothEspEdgeSignal edge;
-        while (BluetoothEsp_dequeueEdge(&edge)) {
-            switch (edge) {
-                case BLUETOOTH_ESP_EDGE_CONNECTED:
-                    QACTIVE_POST(g_bluetoothAO, &connectedEvt, (QActive *)0);
-                    break;
-                case BLUETOOTH_ESP_EDGE_DISCONNECTED:
-                    QACTIVE_POST(g_bluetoothAO, &disconnectedEvt, (QActive *)0);
-                    break;
-                default:
-                    break;
-            }
-        }
-
         QS_processTestEvts_();
 
         int const status = hil_serial_read(QS_rxPriv_.buf, QS_rxPriv_.end);
