@@ -277,4 +277,18 @@ void QS_onTestPost(void const *sender,
             QS_STR("advertisement requested");
         QS_END();
     }
+
+
+    else if (recipient == g_sequencerAO && e->sig == BLUETOOTH_CONNECTED_SIG) {
+
+        QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+            QS_STR("bluetooth connected");
+        QS_END();
+    }
+    else if (recipient == g_sequencerAO && e->sig == BLUETOOTH_DISCONNECTED_SIG) {
+
+        QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+            QS_STR("bluetooth disconnected");
+        QS_END();
+    }
 }
