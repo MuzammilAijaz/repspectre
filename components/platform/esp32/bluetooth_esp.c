@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
 #include "esp_log.h"
@@ -39,6 +40,10 @@ static void trace_bt(const char* msg) {
 
 extern QActive* g_bluetoothAO; // for posting; i.e. connected/disconnected..
 static uint8_t own_addr_type = 0;
+
+static StaticQueue_t s_ble_edge_queue_storage;
+static BluetoothEspEdgeSignal s_ble_edge_queue_buffer[8];
+static QueueHandle_t s_ble_edge_queue = NULL;
 
 // ---- Async BLE state flags ----------------------------------
 // Tracks BLE stack state shared across callbacks and application
@@ -82,6 +87,23 @@ const char *service_name;
 
 /* Forward declarations */
 static bool Bluetooth_start_advertising(void);
+static bool Bluetooth_enqueue_edge(BluetoothEspEdgeSignal edge);
+
+static bool Bluetooth_enqueue_edge(BluetoothEspEdgeSignal edge) {
+    if (s_ble_edge_queue == NULL) {
+        return false;
+    }
+
+    return (xQueueSend(s_ble_edge_queue, &edge, 0U) == pdPASS);
+}
+
+bool BluetoothEsp_dequeueEdge(BluetoothEspEdgeSignal *outEdge) {
+    if ((s_ble_edge_queue == NULL) || (outEdge == NULL)) {
+        return false;
+    }
+
+    return (xQueueReceive(s_ble_edge_queue, outEdge, 0U) == pdPASS);
+}
 
 /* --- Official GATT Service Definition Array Table --- */
 static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
@@ -229,6 +251,16 @@ static bool Bluetooth_init_adapter(BluetoothConfig config) {
     /* Clean execution: The Bluetooth module now only cares about its own stack initialization */
     int rc = nimble_port_init();
     if (rc != ESP_OK) return false;
+
+    if (s_ble_edge_queue == NULL) {
+        s_ble_edge_queue = xQueueCreateStatic(
+            Q_DIM(s_ble_edge_queue_buffer),
+            sizeof(BluetoothEspEdgeSignal),
+            (uint8_t *)s_ble_edge_queue_buffer,
+            &s_ble_edge_queue_storage
+        );
+        Q_ASSERT(s_ble_edge_queue != NULL);
+    }
 
     // ---- Setup Callbacks ----------------------------------------
     ble_hs_cfg.reset_cb = on_stack_reset;
@@ -450,17 +482,7 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg) {
                         .supervision_timeout = 180,
                         });
 
-                // QEvt *e = Q_NEW(QEvt, _DEVICE_CONNECTED_SIG);
-
-                // QACTIVE_POST(g_bluetoothAO, e, 0);
-
-                // // Send signal to bluetoothAO
-                // static const QEvt connectedEvt = QEVT_INITIALIZER(_DEVICE_CONNECTED_SIG);
-                // // QACTIVE_POST(g_bluetoothAO, &connectedEvt, 0); // CAUTION: 0 because the sender is not an AO
-                static QSpyId const l_ble_gap_isr = { 0U };
-                // QF_PUBLISH(e, &l_ble_gap_isr); // CAUTION: 0 because the sender is not an AO
-                static const QEvt connectedEvt = QEVT_INITIALIZER(_DEVICE_CONNECTED_SIG);
-                QF_PUBLISH(&connectedEvt, &l_ble_gap_isr);
+                Q_ASSERT(Bluetooth_enqueue_edge(BLUETOOTH_ESP_EDGE_CONNECTED));
             }
             if (event->connect.status != 0 && is_advertising_active) {
                 /* Connection attempt aborted or failed; self-heal and auto-resume advertising */
@@ -469,11 +491,9 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg) {
             break;
 
         case BLE_GAP_EVENT_DISCONNECT:
-            /* CRITICAL RESILIENCE: Automated Self-Healing. Re-advertise instantly on client disconnection */
-            trace_bt("ServerCallbacks::onDisconnect - Client disconnected, start advertising");
-            if (!is_advertising_active) {
-                Bluetooth_start_advertising();
-            }
+            is_advertising_active = false;
+            trace_bt("ServerCallbacks::onDisconnect - Client disconnected");
+            Q_ASSERT(Bluetooth_enqueue_edge(BLUETOOTH_ESP_EDGE_DISCONNECTED));
             break;
 
         case BLE_GAP_EVENT_ADV_COMPLETE:

@@ -12,7 +12,15 @@ enum {
 	BLUETOOTH_ESP_TEST_SIG = QS_USER1 + 1,
 };
 
+typedef enum {
+    BLUETOOTH_ESP_EDGE_NONE = 0,
+    BLUETOOTH_ESP_EDGE_CONNECTED,
+    BLUETOOTH_ESP_EDGE_DISCONNECTED,
+} BluetoothEspEdgeSignal;
+
 extern BluetoothInterface espBluetoothInterface;
+
+bool BluetoothEsp_dequeueEdge(BluetoothEspEdgeSignal *outEdge);
 
 #ifdef __cplusplus
 }

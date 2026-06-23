@@ -21,6 +21,7 @@ typedef struct {
 static QState BluetoothAO_initial(BluetoothAO *me, void const * par);
 QState BluetoothAO_uninitialized(BluetoothAO * me, const QEvt* e);
 QState BluetoothAO_initialized(BluetoothAO * me, const QEvt* e);
+QState BluetoothAO_operational(BluetoothAO * me, const QEvt* e);
 QState BluetoothAO_error(BluetoothAO * me, const QEvt* e);
 QState BluetoothAO_advertising(BluetoothAO * me, const QEvt* e);
 QState BluetoothAO_connected(BluetoothAO * me, const QEvt* e);
@@ -127,13 +128,39 @@ QState BluetoothAO_initialized(BluetoothAO * me, const QEvt* e) {
             break;
         }
 
+        default: {
+            rtn = Q_SUPER(&QHsm_top);
+            break;
+        }
+    }
+
+    return rtn;
+}
+
+QState BluetoothAO_operational(BluetoothAO * me, const QEvt* e) {
+    QState rtn;
+
+    switch (e->sig) {
+
         case _DEVICE_CONNECTED_SIG: {
             rtn = Q_TRAN(&BluetoothAO_connected);
             break;
         }
 
+        case _DEVICE_DISCONNECTED_SIG: {
+            bool success = me->bluetooth->start_advertising();
+            if (success) {
+                rtn = Q_TRAN(&BluetoothAO_advertising);
+            }
+            else {
+                me->status = ERR_BLUETOOTH_ADV_START;
+                rtn = Q_TRAN(&BluetoothAO_error);
+            }
+            break;
+        }
+
         default: {
-            rtn = Q_SUPER(&QHsm_top);
+            rtn = Q_SUPER(&BluetoothAO_initialized);
             break;
         }
     }
@@ -156,15 +183,8 @@ QState BluetoothAO_advertising(BluetoothAO * me, const QEvt* e) {
             break;
         }
 
-        case _DEVICE_CONNECTED_SIG: {
-            // stop advertising and move to connected state
-            me->bluetooth->stop_advertising();
-            rtn = Q_TRAN(&BluetoothAO_connected);
-            break;
-        }
-
         default: {
-            rtn = Q_SUPER(&BluetoothAO_initialized); // PARENT
+            rtn = Q_SUPER(&BluetoothAO_operational); // PARENT
             break;
         }
     }
@@ -194,20 +214,8 @@ QState BluetoothAO_connected(BluetoothAO * me, const QEvt* e) {
             break;
         }
 
-        case _DEVICE_DISCONNECTED_SIG: {
-            bool success = me->bluetooth->start_advertising();
-            if (success) {
-                rtn = Q_TRAN(&BluetoothAO_advertising);
-            }
-            else {
-                me->status = ERR_BLUETOOTH_ADV_START;
-                rtn = Q_TRAN(&BluetoothAO_error);
-            }
-            break;
-        }
-
         default: {
-            rtn = Q_SUPER(&BluetoothAO_initialized); // PARENT
+            rtn = Q_SUPER(&BluetoothAO_operational); // PARENT
             break;
         }
     }
