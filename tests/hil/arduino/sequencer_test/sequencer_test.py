@@ -28,10 +28,12 @@ expect("@timestamp HIL_TEST_SIG smoked")
 expect("@timestamp Trg-Done QS_RX_COMMAND")
 
 # =============================================================================
-test("HIL: System initializes the sensor and bluetooth on START_BOOT_SIG")
+test("BOOT: System initializes the sensor and bluetooth on START_BOOT_SIG and\
+        moves to operational state (disconnected)")
 post("START_BOOT_SIG")
 expect("@timestamp HIL_TEST_SIG sensor init requested")
 expect("@timestamp HIL_TEST_SIG bluetooth init requested")
 expect("@timestamp HIL_TEST_SIG sensor initialized")
 expect("@timestamp HIL_TEST_SIG bluetooth initialized")
+expect("@timestamp HIL_TEST_SIG advertisement requested")
 expect("@timestamp Trg-Done QS_RX_EVENT")

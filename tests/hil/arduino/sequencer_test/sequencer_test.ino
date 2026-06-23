@@ -75,6 +75,10 @@ static void QS_userDictionaries(void) {
     QS_SIG_DICTIONARY(INITIALIZE_MPU_SIG, NULL);
     QS_SIG_DICTIONARY(INITIALIZE_BLUETOOTH_SIG, NULL);
     QS_SIG_DICTIONARY(ERROR_BSP_INIT, NULL);
+    QS_SIG_DICTIONARY(SYSTEM_OPERATIONAL_SIG, NULL);
+    QS_SIG_DICTIONARY(START_ADVERTISEMENT_SIG, NULL);
+    QS_SIG_DICTIONARY(BLUETOOTH_CONNECTED_SIG, NULL);
+    QS_SIG_DICTIONARY(BLUETOOTH_DISCONNECTED_SIG, NULL);
 
     QS_OBJ_DICTIONARY(g_sequencerAO);
     QS_OBJ_DICTIONARY(g_sensorAO);
@@ -264,6 +268,13 @@ void QS_onTestPost(void const *sender,
     else if (recipient == g_sequencerAO && e->sig == ERROR_BSP_INIT) {
         QS_BEGIN_ID(HIL_TEST_SIG, 1U)
             QS_STR("bsp error published");
+        QS_END();
+    }
+
+    else if (recipient == g_bluetoothAO && e->sig == START_ADVERTISEMENT_SIG) {
+
+        QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+            QS_STR("advertisement requested");
         QS_END();
     }
 }
