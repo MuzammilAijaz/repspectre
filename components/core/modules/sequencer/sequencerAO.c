@@ -40,6 +40,8 @@ static QState SequencerAO_initial(SequencerAO *me, void const * par);
 static QState SequencerAO_booting(SequencerAO * me, const QEvt* e);
 static QState SequencerAO_error(SequencerAO * me, const QEvt* e);
 static QState SequencerAO_operational(SequencerAO * me, const QEvt* e);
+static QState SequencerAO_operational_connected(SequencerAO * me, const QEvt* e);
+static QState SequencerAO_operational_disconnected(SequencerAO * me, const QEvt* e);
 // Calibrating
 // Firmware Update
 // Error/Stopped/Idle?
@@ -72,6 +74,8 @@ QState SequencerAO_initial(SequencerAO * const me, void const * const par) {
     QActive_subscribe(&me->super, START_BOOT_SIG);
     QActive_subscribe(&me->super, BLUETOOTH_INITIALIZED_SIG);
     QActive_subscribe(&me->super, MPU_INITIALIZED_SIG);
+    QActive_subscribe(&me->super, BLUETOOTH_CONNECTED_SIG);
+    QActive_subscribe(&me->super, BLUETOOTH_DISCONNECTED_SIG);
 
     return Q_TRAN(&SequencerAO_booting);
 }
@@ -161,7 +165,6 @@ QState SequencerAO_booting(SequencerAO * me, const QEvt* e) {
 
 QState SequencerAO_operational(SequencerAO * me, const QEvt* e) {
     static const QEvt operationalSig = QEVT_INITIALIZER(SYSTEM_OPERATIONAL_SIG);
-    static const QEvt startAdvSig = QEVT_INITIALIZER(START_ADVERTISEMENT_SIG);
 
     QState rtn;
 
@@ -170,10 +173,12 @@ QState SequencerAO_operational(SequencerAO * me, const QEvt* e) {
         case Q_ENTRY_SIG: {
             QF_PUBLISH(&operationalSig, &me->super);
 
-            // start advertisement upon entry to the state
-            QACTIVE_POST(g_bluetoothAO, &startAdvSig, me);
-
             rtn = Q_HANDLED();
+            break;
+        }
+
+        case Q_INIT_SIG: {
+            rtn = Q_TRAN(&SequencerAO_operational_disconnected);
             break;
         }
 
@@ -184,6 +189,61 @@ QState SequencerAO_operational(SequencerAO * me, const QEvt* e) {
     }
 
     return rtn;
+}
+
+QState SequencerAO_operational_disconnected(SequencerAO * me, const QEvt* e) {
+    static const QEvt startAdvSig = QEVT_INITIALIZER(START_ADVERTISEMENT_SIG);
+
+    QState rtn;
+
+    switch (e->sig) {
+
+        case Q_ENTRY_SIG: {
+            // start advertisement upon entry to the state
+            QACTIVE_POST(g_bluetoothAO, &startAdvSig, me);
+
+            rtn = Q_HANDLED();
+            break;
+        }
+
+        case BLUETOOTH_CONNECTED_SIG: {
+            rtn = Q_TRAN(&SequencerAO_operational_connected);
+            break;
+        }
+
+        default: {
+            rtn = Q_SUPER(&SequencerAO_operational);
+            break;
+        }
+    }
+
+    return rtn;
+
+}
+
+QState SequencerAO_operational_connected(SequencerAO * me, const QEvt* e) {
+    QState rtn;
+
+    switch (e->sig) {
+
+        case Q_ENTRY_SIG: {
+            rtn = Q_HANDLED();
+            break;
+        }
+
+        case BLUETOOTH_DISCONNECTED_SIG: {
+            rtn = Q_TRAN(&SequencerAO_operational_disconnected);
+            break;
+        }
+
+        default: {
+            rtn = Q_SUPER(&SequencerAO_operational);
+            break;
+        }
+    }
+
+    return rtn;
+
 }
 
 QState SequencerAO_error(SequencerAO * me, const QEvt* e) {
@@ -216,3 +276,44 @@ static bool isBootSequenceDone(const SequencerAO *me) {
     return me->bootState.sensorReady &&
         me->bootState.bluetoothReady;
 }
+
+//===== Testing ================================================================
+
+#ifdef CPPUTEST
+
+static QStateHandler stateFromId(SequencerStateId state)
+{
+    switch (state) {
+
+        case SEQ_STATE_BOOTING:
+            return Q_STATE_CAST(&SequencerAO_booting);
+
+        case SEQ_STATE_OPERATIONAL:
+            return Q_STATE_CAST(&SequencerAO_operational);
+
+        case SEQ_STATE_OPERATIONAL_DISCONNECTED:
+            return Q_STATE_CAST(&SequencerAO_operational_disconnected);
+
+        case SEQ_STATE_OPERATIONAL_CONNECTED:
+            return Q_STATE_CAST(&SequencerAO_operational_connected);
+
+        case SEQ_STATE_ERROR:
+            return Q_STATE_CAST(&SequencerAO_error);
+
+        default:
+            return (QStateHandler)0;
+    }
+}
+
+bool SequencerAO_isInState(SequencerStateId state)
+{
+    QStateHandler handler = stateFromId(state);
+
+    if (handler == (QStateHandler)0) {
+        return false;
+    }
+
+    return QHsm_isIn(&m_instance.super.super, handler);
+}
+
+#endif

@@ -1,3 +1,5 @@
+#define CPPUTEST 1
+
 // cpputest-for-qpc
 #include "cmsTestPublishedEventRecorder.hpp"
 #include "cms_cpputest_qf_ctrl.hpp"
@@ -239,6 +241,34 @@ TEST(SequencerAOGroup, GivenOperational_WhenEnterState_ThenStartAdvertisement)
 
     CHECK_TRUE(event != nullptr);
     CHECK_EQUAL(START_ADVERTISEMENT_SIG, event->sig);
+}
+
+// FIXME: This test has no assertion, find a way to test what current the current state
+TEST(SequencerAOGroup, GivenOperationalDisconnected_WhenBluetoothConnected_ThenTransitionToConnected)
+{
+    using namespace cms::test;
+    startAOAndMoveToOperationalState();
+
+    CHECK_TRUE( SequencerAO_isInState(SEQ_STATE_OPERATIONAL_DISCONNECTED));
+
+    static const QEvt evt = QEVT_INITIALIZER(BLUETOOTH_CONNECTED_SIG);
+    qf_ctrl::PublishAndProcess(&evt, mRecorder);
+
+    CHECK_TRUE( SequencerAO_isInState(SEQ_STATE_OPERATIONAL_CONNECTED));
+}
+
+// FIXME: This test has no assertion, find a way to test what current the current state
+TEST(SequencerAOGroup, GivenOperationalConnected_WhenBluetoothDisconnected_ThenTransitionToDisconnected)
+{
+    using namespace cms::test;
+    startAOAndMoveToOperationalState();
+
+    CHECK_TRUE( SequencerAO_isInState(SEQ_STATE_OPERATIONAL_DISCONNECTED));
+
+    static const QEvt evt = QEVT_INITIALIZER(BLUETOOTH_DISCONNECTED_SIG);
+    qf_ctrl::PublishAndProcess(&evt, mRecorder);
+
+    CHECK_TRUE( SequencerAO_isInState(SEQ_STATE_OPERATIONAL_DISCONNECTED));
 }
 
 // =============================================================================

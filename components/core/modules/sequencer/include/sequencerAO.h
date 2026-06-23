@@ -29,6 +29,20 @@ void SequencerAO_ctor(const BspInterface * const bsp);
  */
 void SequencerAO_dtor();
 
+#ifdef CPPUTEST
+
+typedef enum {
+    SEQ_STATE_BOOTING,
+    SEQ_STATE_OPERATIONAL,
+    SEQ_STATE_OPERATIONAL_DISCONNECTED,
+    SEQ_STATE_OPERATIONAL_CONNECTED,
+    SEQ_STATE_ERROR,
+} SequencerStateId;
+
+bool SequencerAO_isInState(SequencerStateId state);
+
+#endif
+
 #ifdef __cplusplus
 }
 #endif
