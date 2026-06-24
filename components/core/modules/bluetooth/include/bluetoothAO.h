@@ -8,6 +8,7 @@ extern "C" {
 #include <stdio.h>
 #include "qpc.h"
 #include "bluetooth.h"
+#include "bluetoothBridge.h"
 
 typedef enum {
     BLUETOOTH_OK,
@@ -37,7 +38,7 @@ extern QActive * g_bluetoothAO;
  * Construct the Active Object with the bluetooth function pointer implementations
  * @see BluetoothInterface
  */
-void BluetoothAO_ctor(const BluetoothInterface * const bluetooth);
+void BluetoothAO_ctor(const BluetoothInterface * const bluetooth, BluetoothBridge * const bridge);
 
 /**
  * Destroy the Active Object

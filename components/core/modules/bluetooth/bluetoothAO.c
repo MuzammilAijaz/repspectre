@@ -6,6 +6,7 @@
 
 #include "pub_sub_signals.h"
 #include "bluetooth.h"
+#include "bluetoothBridge.h"
 
 Q_DEFINE_THIS_MODULE("BluetoothAO")
 
@@ -16,6 +17,7 @@ typedef struct {
     BluetoothConfig* config;
 
     BluetoothStatus status;
+    BluetoothBridge * bridge;
 } BluetoothAO;
 
 static QState BluetoothAO_initial(BluetoothAO *me, void const * par);
@@ -29,12 +31,13 @@ static BluetoothAO m_instance; // private member variable
 
 QActive * g_bluetoothAO = NULL; // NOTE: only access this AFTER BluetoothAO_ctor() called
 
-void BluetoothAO_ctor(const BluetoothInterface * const bluetooth) {
+void BluetoothAO_ctor(const BluetoothInterface * const bluetooth, BluetoothBridge * const bridge) {
     Q_ASSERT(bluetooth);
     Q_ASSERT(bluetooth->init != NULL);
 
     QActive_ctor(&m_instance.super, Q_STATE_CAST(BluetoothAO_initial));
     m_instance.bluetooth = bluetooth;
+    m_instance.bridge = bridge;
 
     g_bluetoothAO = &m_instance.super;
 }
@@ -73,7 +76,7 @@ QState BluetoothAO_uninitialized(BluetoothAO * me, const QEvt* e) {
 
             bool success;
 
-            success = me->bluetooth->init(event->config);
+            success = me->bluetooth->init(event->config, me->bridge);
             if (success) {
                 success = me->bluetooth->setup_profile();
             }

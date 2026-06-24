@@ -9,6 +9,7 @@ extern "C" {
 #include <stddef.h> // for size_t
 #include <stdbool.h>
 #include "sensor.h"
+#include "bluetoothBridge.h"
 
 typedef struct {
     const char* device_name; // null-terminated string owned by caller
@@ -16,7 +17,7 @@ typedef struct {
 } BluetoothConfig;
 
 typedef struct {
-    bool (*init)(BluetoothConfig config);
+    bool (*init)(BluetoothConfig config, BluetoothBridge * const bridge);
     bool (*setup_profile)(void);
     bool (*start_advertising)(void);
     bool (*stop_advertising)(void);
