@@ -11,6 +11,7 @@ target_sources(platform-esp32 INTERFACE
 	i2c_esp32.c
 	i2cdev_esp32.c
 	sensor_esp32.c
+	criticalSection_esp.c
 )
 
 target_include_directories(platform-esp32
