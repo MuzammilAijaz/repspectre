@@ -10,6 +10,7 @@
 #include "bluetoothAO.h"
 #include "pub_sub_signals.h"
 #include "Mock_Bluetooth.hpp"
+#include "criticalSection_stub.h"
 
 #include "unit_test_utils.hpp"
 
@@ -23,6 +24,10 @@ TEST_GROUP(BluetoothAOGroup) {
 
     // Records the events
     cms::test::PublishedEventRecorder* mRecorder = nullptr;
+
+    BluetoothBridge mBluetoothBridge {};
+    CriticalSection *mCriticalSection = nullptr;
+    std::array<BluetoothEdgeSignal, 8> mBridgeStorage {};
 
     void setup() final {
         using namespace cms::test;
@@ -39,7 +44,13 @@ TEST_GROUP(BluetoothAOGroup) {
 
         setRecorder(mRecorder);
 
-        BluetoothAO_ctor(&Mock_Bluetooth_interface);
+        static CriticalSection s_testCriticalSection {};
+        mCriticalSection = &s_testCriticalSection;
+        CriticalSection_init(mCriticalSection); // stubbed
+        BluetoothBridge_init( &mBluetoothBridge, mBridgeStorage.data(),
+                static_cast<uint8_t>(mBridgeStorage.size()), mCriticalSection);
+
+        BluetoothAO_ctor(&Mock_Bluetooth_interface, &mBluetoothBridge);
         mUnderTest = g_bluetoothAO; // this will be out AO under test
         CHECK_TRUE(mUnderTest != nullptr);
 
@@ -54,6 +65,10 @@ TEST_GROUP(BluetoothAOGroup) {
 
         Mock_Bluetooth_dtor();
         BluetoothAO_dtor();
+
+        std::fill( mBridgeStorage.begin(), mBridgeStorage.end(), BLUETOOTH_EDGE_NONE);
+        mBluetoothBridge = {};
+        *mCriticalSection = {};
 
         mUnderTest = nullptr; // this will be out AO under test
 

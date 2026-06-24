@@ -26,6 +26,7 @@ target_link_libraries(sequencerAO_test
 
 	fake-bsp
 	fake-sensor
+	hal-stub
 )
 
 # add_test(NAME sequencerAO_test COMMAND sequencerAO_test)

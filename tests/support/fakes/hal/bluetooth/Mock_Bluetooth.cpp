@@ -1,4 +1,5 @@
 #include "Mock_Bluetooth.hpp"
+#include "bluetoothBridge.h"
 #include "CppUTestExt/MockSupport.h"
 
 // ==== Overrides ==============================================================
@@ -11,7 +12,8 @@ typedef struct {
 static MockBluetoothStorage m_mock_state;
 
 // Implementation of C interface functions mapping to CppUTest Mocks
-static bool Mock_init(BluetoothConfig config) {
+static bool Mock_init(BluetoothConfig config, BluetoothBridge *bridge) {
+	(void) bridge;
 	return mock()
 		.actualCall("bluetooth_init")
 		.withParameter("device_name", config.device_name)

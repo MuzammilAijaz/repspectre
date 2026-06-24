@@ -23,6 +23,7 @@ target_link_libraries(bluetoothAO_test
     ${COMMON_TEST_LIBRARIES}
 
 	mock-bluetooth
+	hal-stub
 )
 
 # add_test(NAME bluetoothAO_test COMMAND bluetoothAO_test)
