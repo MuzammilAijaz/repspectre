@@ -30,6 +30,11 @@
 
 #include <Arduino.h>
 
+extern "C" {
+    /** Dispatches QSpy-injected events to actual AOs. */
+    void QS_processTestEvts_(void);
+}
+
 #if defined(CONFIG_IDF_TARGET_ESP32S3) \
     && defined(ARDUINO_USB_MODE) && ARDUINO_USB_MODE
 #include "driver/usb_serial_jtag.h"
@@ -184,6 +189,14 @@ void QS_onTestLoop() {
         }
 
         QS_onFlush();
+
+        // RESEARCH: why exactly this works...
+        // HACK:  why i added this: to make sequencer bluetooth connection test pass..
+        // Process test events AFTER parsing and ONLY when data is received
+        // so commands received this iteration are dispatched to AOs
+        // within the same iteration, not deferred to the next loop cycle.
+        QS_processTestEvts_();
+
         delay(QS_POLL_DELAY);
     }
     // set inTestLoop to true in case calls to QS_onTestLoop() nest,

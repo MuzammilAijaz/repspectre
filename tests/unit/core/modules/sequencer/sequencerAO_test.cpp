@@ -1,3 +1,5 @@
+#define CPPUTEST 1
+
 // cpputest-for-qpc
 #include "cmsTestPublishedEventRecorder.hpp"
 #include "cms_cpputest_qf_ctrl.hpp"
@@ -126,6 +128,17 @@ TEST_GROUP(SequencerAOGroup)
         qf_ctrl::PublishAndProcess(e, mRecorder);
     }
 
+    void startAOAndMoveToOperationalState(void) {
+        using namespace cms::test;
+        startAOAndMoveToBootingState();
+        auto* btInit = Q_NEW(QEvt, BLUETOOTH_INITIALIZED_SIG);
+        qf_ctrl::PublishAndProcess(btInit, mRecorder);
+        auto* mpuInit = Q_NEW(QEvt, MPU_INITIALIZED_SIG);
+        qf_ctrl::PublishAndProcess(mpuInit, mRecorder);
+        // First event should be the initialization request
+        (void) dummy_bluetoothAO->getRecordedEvent();
+    }
+
 };
 
 TEST(SequencerAOGroup, AOSmokeTest)
@@ -176,13 +189,87 @@ TEST(SequencerAOGroup, GivenBooting_WhenBspInitialised_ThenRequestBluetoothIniti
     CHECK_EQUAL(INITIALIZE_BLUETOOTH_SIG, recordedEvent->sig);
 }
 
-// TODO: handle all succesfful initialization and transition.
+TEST(SequencerAOGroup, GivenBooting_WhenOnlyMpuInitialized_ThenRemainInBootingState)
+{
+    using namespace cms::test;
+    startAOAndMoveToBootingState();
+    qf_ctrl::ProcessEvents();
 
-// ==== STATE: Enabled =========================================================
+    auto* e = Q_NEW(QEvt, MPU_INITIALIZED_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    // expect no signal
+    cms::QEvtUniquePtr event = mRecorder->getRecordedEvent();
+    CHECK_TRUE(event == nullptr);
+}
 
+TEST(SequencerAOGroup, GivenBooting_WhenOnlyBluetoothInitialized_ThenRemainInBootingState)
+{
+    using namespace cms::test;
+    startAOAndMoveToBootingState();
+    qf_ctrl::ProcessEvents();
 
-// TODO: handle "CONIFGURED" from sensor and trasition accordingly
-// TODO: handle "CONFIGURED" from bluetooth and transition accordingly
+    auto* e = Q_NEW(QEvt, BLUETOOTH_INITIALIZED_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    // expect no signal
+    cms::QEvtUniquePtr event = mRecorder->getRecordedEvent();
+    CHECK_TRUE(event == nullptr);
+}
+
+// ==== STATE: Operational =====================================================
+
+TEST(SequencerAOGroup, GivenBooting_WhenAllSubsystemsInitialized_ThenMoveToOperationalState)
+{
+    using namespace cms::test;
+    startAOAndMoveToBootingState();
+    qf_ctrl::ProcessEvents();
+
+    auto* e = Q_NEW(QEvt, BLUETOOTH_INITIALIZED_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    auto* e2 = Q_NEW(QEvt, MPU_INITIALIZED_SIG);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+
+    checkRecordedEventSignal(SYSTEM_OPERATIONAL_SIG);
+}
+
+TEST(SequencerAOGroup, GivenOperational_WhenEnterState_ThenStartAdvertisement)
+{
+    using namespace cms::test;
+    startAOAndMoveToOperationalState();
+
+    // event should be advertisement start
+    auto event = dummy_bluetoothAO->getRecordedEvent();
+
+    CHECK_TRUE(event != nullptr);
+    CHECK_EQUAL(START_ADVERTISEMENT_SIG, event->sig);
+}
+
+// FIXME: This test has no assertion, find a way to test what current the current state
+TEST(SequencerAOGroup, GivenOperationalDisconnected_WhenBluetoothConnected_ThenTransitionToConnected)
+{
+    using namespace cms::test;
+    startAOAndMoveToOperationalState();
+
+    CHECK_TRUE( SequencerAO_isInState(SEQ_STATE_OPERATIONAL_DISCONNECTED));
+
+    static const QEvt evt = QEVT_INITIALIZER(BLUETOOTH_CONNECTED_SIG);
+    qf_ctrl::PublishAndProcess(&evt, mRecorder);
+
+    CHECK_TRUE( SequencerAO_isInState(SEQ_STATE_OPERATIONAL_CONNECTED));
+}
+
+// FIXME: This test has no assertion, find a way to test what current the current state
+TEST(SequencerAOGroup, GivenOperationalConnected_WhenBluetoothDisconnected_ThenTransitionToDisconnected)
+{
+    using namespace cms::test;
+    startAOAndMoveToOperationalState();
+
+    CHECK_TRUE( SequencerAO_isInState(SEQ_STATE_OPERATIONAL_DISCONNECTED));
+
+    static const QEvt evt = QEVT_INITIALIZER(BLUETOOTH_DISCONNECTED_SIG);
+    qf_ctrl::PublishAndProcess(&evt, mRecorder);
+
+    CHECK_TRUE( SequencerAO_isInState(SEQ_STATE_OPERATIONAL_DISCONNECTED));
+}
 
 // =============================================================================
 // | Error Handling

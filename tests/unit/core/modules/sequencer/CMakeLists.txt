@@ -10,6 +10,8 @@ set_target_properties(sequencerAO_test PROPERTIES
 
 target_compile_features(sequencerAO_test PRIVATE cxx_std_17)
 
+target_compile_definitions(sequencerAO_test PRIVATE CPPUTEST)
+
 target_include_directories(sequencerAO_test
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -24,6 +26,7 @@ target_link_libraries(sequencerAO_test
 
 	fake-bsp
 	fake-sensor
+	hal-stub
 )
 
 # add_test(NAME sequencerAO_test COMMAND sequencerAO_test)

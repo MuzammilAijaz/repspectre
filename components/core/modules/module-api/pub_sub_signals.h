@@ -22,17 +22,16 @@ typedef enum PubSubSignal {
 
     // ---- Sequencer ----------------------------------------------
     START_BOOT_SIG,
+    SYSTEM_OPERATIONAL_SIG,
 
     // ---- Bluetooth ----------------------------------------------
     INITIALIZE_BLUETOOTH_SIG,
     BLUETOOTH_INITIALIZED_SIG,
     START_ADVERTISEMENT_SIG,
     BLUETOOTH_CONNECTED_SIG,
+    BLUETOOTH_DISCONNECTED_SIG,
     BLUETOOTH_SEND_DATA_SIG,
-
-    // Driver level signals
-    _DEVICE_CONNECTED_SIG,
-    _DEVICE_DISCONNECTED_SIG,
+    BLUETOOTH_POLL_SIG,
 
     // ---- Sensor -------------------------------------------------
 

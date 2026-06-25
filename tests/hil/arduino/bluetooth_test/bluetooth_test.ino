@@ -25,6 +25,10 @@
 ///    - Name: "RepHIL-Server"
 ///    - Advertises DEAD and BAAD services
 ///    - Scan response enabled
+///
+/// WARN: TESTS DO NOT WORK!
+/// TODO: REFACTOR!!
+///    
 ///*****************************************************************************
 
 #include <Arduino.h>
@@ -39,6 +43,8 @@ extern "C" {
 #include "qs_pkg.h"
 #include "bluetooth_esp.h"
 #include "BSP_esp.h"
+#include "criticalSection_esp.h"
+#include "bluetoothBridge.h"
 }
 
 Q_DEFINE_THIS_FILE
@@ -47,6 +53,11 @@ extern "C" char const Q_BUILD_DATE[] = __DATE__;
 extern "C" char const Q_BUILD_TIME[] = __TIME__;
 
 static char* characteristicKey = "BEEF";
+
+//----- BluetoothAO - Nimble task bridge -----------------------
+static BluetoothBridge s_bluetoothBridge;
+static BluetoothEdgeSignal s_bluetoothBridgeStorage[8];
+static CriticalSection s_criticalSection;
 
 enum {
     CMD_SMOKE,
@@ -160,7 +171,18 @@ void QS_onCommand(uint8_t cmdId,
 
         case CMD_BT_INIT:
             {
-                bool success = espBluetoothInterface.init(espBluetoothConfig);
+
+                //----- Synchronization ----------------------------------------
+                // required to communicate with AO, instead of posting events using
+                // QP framework, which doesnt work as well from another RTOS i.e
+                // inside callback
+                CriticalSection_init(&s_criticalSection);
+                BluetoothBridge_init(&s_bluetoothBridge, s_bluetoothBridgeStorage,
+                    (uint8_t)(sizeof(s_bluetoothBridgeStorage) / sizeof(s_bluetoothBridgeStorage[0])),
+                    (CriticalSection *) &s_criticalSection
+                );
+
+                bool success = espBluetoothInterface.init(espBluetoothConfig, &s_bluetoothBridge);
 
                 QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                     QS_STR( success ? "INIT" : "INIT FAILED");

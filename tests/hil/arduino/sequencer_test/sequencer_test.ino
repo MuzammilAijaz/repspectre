@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Ticker.h>
 
 extern "C" {
 #include "qpc.h"
@@ -18,6 +19,7 @@ extern "C" {
     #include "BSP_esp.h"
     #include "i2c_config_esp32.h"
     #include "bluetooth_esp.h"
+    #include "criticalSection_esp.h"
 
 #else
     #include "sensor_arduino.h"
@@ -29,6 +31,13 @@ extern "C" {
 }
 
 Q_DEFINE_THIS_FILE
+
+extern "C" void QF_onClockTick(void);
+
+static Ticker l_ticker;
+static void onTick() {
+    QF_onClockTick();
+}
 
 extern "C" char const Q_BUILD_DATE[] = __DATE__;
 extern "C" char const Q_BUILD_TIME[] = __TIME__;
@@ -42,6 +51,11 @@ enum {
 enum {
     HIL_TEST_SIG = QS_USER,
 };
+
+//----- BluetoothAO - Nimble task bridge -----------------------
+static BluetoothBridge s_bluetoothBridge;
+static BluetoothEdgeSignal s_bluetoothBridgeStorage[8];
+static CriticalSection s_criticalSection;
 
 // ---- Dynamic event storage/pool -----------------------------
 // private storage (for normal QEvt events) for creation of events,
@@ -75,6 +89,11 @@ static void QS_userDictionaries(void) {
     QS_SIG_DICTIONARY(INITIALIZE_MPU_SIG, NULL);
     QS_SIG_DICTIONARY(INITIALIZE_BLUETOOTH_SIG, NULL);
     QS_SIG_DICTIONARY(ERROR_BSP_INIT, NULL);
+    QS_SIG_DICTIONARY(SYSTEM_OPERATIONAL_SIG, NULL);
+    QS_SIG_DICTIONARY(START_ADVERTISEMENT_SIG, NULL);
+    QS_SIG_DICTIONARY(BLUETOOTH_CONNECTED_SIG, NULL);
+    QS_SIG_DICTIONARY(BLUETOOTH_DISCONNECTED_SIG, NULL);
+    QS_SIG_DICTIONARY(BLUETOOTH_POLL_SIG, NULL);
 
     QS_OBJ_DICTIONARY(g_sequencerAO);
     QS_OBJ_DICTIONARY(g_sensorAO);
@@ -92,9 +111,23 @@ static void run_test_fixture() {
     QF_init();
     Q_ALLEGE(QS_INIT(NULL));
 
-    /* Don't send anything yet; this avoids sending of traces from the qp side
-     * before the script and the fixture is synced. */
-    QS_GLB_FILTER(0);
+    /* Disable ALL QS records before the test script syncs and sets its own
+     * filter. QS_GLB_FILTER(0) is a no-op (0 matches no switch case in
+     * QS_glbFilter_). The correct call to disable everything is the negative
+     * form: -QS_ALL_RECORDS. Without this, BLE/sensor trace records emitted
+     * during the boot window flood the QS buffer and corrupt the protocol
+     * framing, causing intermittent "Record too long" failures. */
+    QS_GLB_FILTER(-QS_ALL_RECORDS);
+
+    //----- Synchronization ----------------------------------------
+    // required to communicate with AO, instead of posting events using
+    // QP framework, which doesnt work as well from another RTOS i.e 
+    // inside callback
+    CriticalSection_init(&s_criticalSection);
+    BluetoothBridge_init(&s_bluetoothBridge, s_bluetoothBridgeStorage,
+        (uint8_t)(sizeof(s_bluetoothBridgeStorage) / sizeof(s_bluetoothBridgeStorage[0])),
+        (CriticalSection *) &s_criticalSection
+    );
 
     // ---- AO construction ----------------------------------------
     // called before QS_userDictionaries(), to be able to not pass null
@@ -102,7 +135,7 @@ static void run_test_fixture() {
 #if ESP_IDF
     SequencerAO_ctor(&espBspInterface);
     SensorAO_ctor(&espSensorInterface);
-    BluetoothAO_ctor(&espBluetoothInterface);
+    BluetoothAO_ctor(&espBluetoothInterface, &s_bluetoothBridge);
 #else
     SequencerAO_ctor(&arduinoBspInterface);
     SensorAO_ctor(&arduinoSensorInteface);
@@ -164,7 +197,13 @@ void setup() {
 
     run_test_fixture();
 
+    l_ticker.attach_ms(1U, onTick);
+
     return (void)QF_run();
+}
+
+extern "C" void QF_onClockTick(void) {
+    QTIMEEVT_TICK_X(0U, (void *)0);
 }
 
 void loop() {
@@ -264,6 +303,27 @@ void QS_onTestPost(void const *sender,
     else if (recipient == g_sequencerAO && e->sig == ERROR_BSP_INIT) {
         QS_BEGIN_ID(HIL_TEST_SIG, 1U)
             QS_STR("bsp error published");
+        QS_END();
+    }
+
+    else if (recipient == g_bluetoothAO && e->sig == START_ADVERTISEMENT_SIG) {
+
+        QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+            QS_STR("advertisement requested");
+        QS_END();
+    }
+
+
+    else if (recipient == g_sequencerAO && e->sig == BLUETOOTH_CONNECTED_SIG) {
+
+        QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+            QS_STR("bluetooth connected");
+        QS_END();
+    }
+    else if (recipient == g_sequencerAO && e->sig == BLUETOOTH_DISCONNECTED_SIG) {
+
+        QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+            QS_STR("bluetooth disconnected");
         QS_END();
     }
 }
