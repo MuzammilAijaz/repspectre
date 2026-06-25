@@ -21,17 +21,17 @@
 
 #include "qpc.h"
 
-Q_DEFINE_THIS_MODULE("BluetoothEsp")
-enum {
-    BLUETOOTH_ESP_SIG = QS_USER,
-    BLUETOOTH_CALLBACK_TEST_SIG,
-};
+// Q_DEFINE_THIS_MODULE("BluetoothEsp")
+// enum {
+//     BLUETOOTH_ESP_SIG = //QS_USER,
+//     BLUETOOTH_CALLBACK_TEST_SIG,
+// };
 
-static void trace_bt(const char* msg) {
-    QS_BEGIN_ID(BLUETOOTH_CALLBACK_TEST_SIG, 1U)
-        QS_STR(msg);
-    QS_END();
-}
+// static void trace_bt(const char* msg) {
+    //QS_BEGIN_ID(BLUETOOTH_CALLBACK_TEST_SIG, 1U)
+        //QS_STR(msg);
+    //QS_END();
+// }
 
 static uint8_t own_addr_type = 0;
 
@@ -140,7 +140,7 @@ static int gatt_svr_access_dead_chr(uint16_t conn_handle, uint16_t attr_handle, 
                     snprintf(msg, sizeof(msg),
                             "Characteristic::onRead UUID=0xbeef Value=%s",
                             characteristic_value);
-                    trace_bt(msg);
+                    // trace_bt(msg);
                 }
                 rc = os_mbuf_append(ctxt->om, characteristic_value, strlen(characteristic_value));
                 return (rc == 0) ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
@@ -156,7 +156,7 @@ static int gatt_svr_access_dead_chr(uint16_t conn_handle, uint16_t attr_handle, 
                     snprintf(msg, sizeof(msg),
                             "Characteristic::onWrite UUID=0xbeef Value=%s",
                             characteristic_value);
-                    trace_bt(msg);
+                    // trace_bt(msg);
                 }
                 return rc;
             }
@@ -187,26 +187,26 @@ static void on_stack_reset(int reason) {
 static bool apply_adv_fields(void) {
     int rc = ble_gap_adv_set_fields(&adv_fields);
 
-    Q_ASSERT(rc != BLE_HS_ENOTSYNCED);
-    Q_ASSERT(rc == 0);
+    //Q_ASSERT(rc != BLE_HS_ENOTSYNCED);
+    //Q_ASSERT(rc == 0);
 
     return (rc == 0);
 }
 
 static void on_stack_sync(void) {
     int rc = ble_hs_util_ensure_addr(0);
-    Q_ASSERT(rc == 0);
+    //Q_ASSERT(rc == 0);
     rc = ble_hs_id_infer_auto(0, &own_addr_type);
-    Q_ASSERT(rc == 0);
+    //Q_ASSERT(rc == 0);
 
     // setup advertisement here.
     bool set = apply_adv_fields();
-    Q_ASSERT(set);
+    //Q_ASSERT(set);
 
     is_on_sync_called = true;
 
     // bool advertising_started = Bluetooth_start_advertising();
-    // Q_ASSERT(advertising_started);
+    // //Q_ASSERT(advertising_started);
 }
 
 static void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg) {
@@ -308,15 +308,15 @@ static bool Bluetooth_start_advertising(void) {
     if (!is_initialized) return false;
 
     if (!is_on_sync_called) {
-        QS_BEGIN_ID(BLUETOOTH_ESP_SIG, 0U)
-            QS_STR("Not Synced with controller");
-        QS_END()
+        //QS_BEGIN_ID(BLUETOOTH_ESP_SIG, 0U)
+            //QS_STR("Not Synced with controller");
+        //QS_END()
             return false;
     }
-    Q_ASSERT(is_on_sync_called);
+    //Q_ASSERT(is_on_sync_called);
 
     bool adv_field_applied = apply_adv_fields();
-    Q_ASSERT(adv_field_applied);
+    //Q_ASSERT(adv_field_applied);
     if (!adv_field_applied) return false;
 
     // struct ble_gap_adv_params adv_params;
@@ -325,7 +325,7 @@ static bool Bluetooth_start_advertising(void) {
     adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN;
 
     int rc = ble_gap_adv_start(own_addr_type, NULL, BLE_HS_FOREVER, &adv_params, ble_gap_event_handler, NULL);
-    Q_ASSERT(rc == 0);
+    //Q_ASSERT(rc == 0);
     if (rc == 0) {
         is_advertising_active = true;
         return true;
@@ -351,9 +351,9 @@ static bool Bluetooth_set_preferred_mtu(uint16_t mtu) {
 
     int rc = ble_att_set_preferred_mtu(mtu);
     if (rc != 0) {
-        trace_bt("Count not set local mtu value");
+        // trace_bt("Count not set local mtu value");
     }
-    Q_ASSERT(rc == 0);
+    //Q_ASSERT(rc == 0);
 
     return rc == 0;
 }
@@ -410,7 +410,7 @@ static void trace_peer(uint16_t conn_handle, const char* prefix) {
                 prefix,
                 a[5], a[4], a[3],
                 a[2], a[1], a[0]);
-        trace_bt(msg);
+        // trace_bt(msg);
     }
 }
 
@@ -418,13 +418,13 @@ static void trace_subscribe(uint16_t conn_handle, uint8_t subValue) {
     trace_peer(conn_handle, "Client ID: 1 Address: ");
 
     if (subValue == 0) {
-        trace_bt(" Unsubscribed to 0xbeef");
+        // trace_bt(" Unsubscribed to 0xbeef");
     } else if (subValue == 1) {
-        trace_bt(" Subscribed to notifications for 0xbeef");
+        // trace_bt(" Subscribed to notifications for 0xbeef");
     } else if (subValue == 2) {
-        trace_bt(" Subscribed to indications for 0xbeef");
+        // trace_bt(" Subscribed to indications for 0xbeef");
     } else if (subValue == 3) {
-        trace_bt(" Subscribed to notifications and indications for 0xbeef");
+        // trace_bt(" Subscribed to notifications and indications for 0xbeef");
     }
 }
 
@@ -453,10 +453,10 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg) {
 
         case BLE_GAP_EVENT_DISCONNECT:
             /* CRITICAL RESILIENCE: Automated Self-Healing. Re-advertise instantly on client disconnection */
-            trace_bt("ServerCallbacks::onDisconnect - Client disconnected, start advertising");
             if (!is_advertising_active) {
                 Bluetooth_start_advertising();
             }
+            // trace_bt("ServerCallbacks::onDisconnect - Client disconnected");
             break;
 
         case BLE_GAP_EVENT_ADV_COMPLETE:
@@ -470,7 +470,7 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg) {
                         "ServerCallbacks::onMTUChange - MTU=%u ConnID=%u",
                         event->mtu.value,
                         event->mtu.conn_handle);
-                trace_bt(msg);
+                // trace_bt(msg);
                 break;
             }
 
@@ -494,7 +494,7 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg) {
                             "Characteristic::onStatus code=%d (%d)",
                             event->notify_tx.status,
                             event->notify_tx.status);
-                    trace_bt(msg);
+                    // trace_bt(msg);
                 }
                 break;
             }
