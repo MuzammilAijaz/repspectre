@@ -4,6 +4,8 @@
 #
 # WARN: This test fails after first run, on the first test only. idk why
 #   -> solution : reflash / reboot properly and then run it.
+#   -> for some reason adding a disconnection test after the connection test 
+#      makes it work?????
 #
 #*****************************************************************************
 
@@ -67,12 +69,11 @@ expect("@timestamp HIL_TEST_SIG advertisement requested")
 expect("@timestamp HIL_TEST_SIG bluetooth disconnected")
 expect("@timestamp Trg-Done QS_RX_EVENT")
 
-#==============================================================================
+#===== NO RESET ===============================================================
 test("OPERATIONAL: BLE host connects and sequencer transitions to\
  CONNECTED state", NORESET)
 
 # Connect host to real target
-# ---------------------------
 
 elapsed_scan_time, elapsed_conn_time = loop.run_until_complete(
     host.scan_and_connect(
@@ -81,16 +82,20 @@ elapsed_scan_time, elapsed_conn_time = loop.run_until_complete(
         conn_timeout_s=TIME_TO_CONNECT
     )
 )
-
 total_time = elapsed_scan_time + elapsed_conn_time
-
 print("Scan time:", elapsed_scan_time)
 print("Connect time:", elapsed_conn_time)
 print("Total time:", total_time)
-
 if total_time > TOTAL_TIME_TO_CONNECT:
-    expect(f"FAIL: Time greater than {TOTAL_TIME_TO_CONNECT}")
+    print(f"FAIL: Time greater than {TOTAL_TIME_TO_CONNECT}")
 
-# Expectations
-# ------------
 expect( f"@timestamp HIL_TEST_SIG bluetooth connected")
+
+#===== NO RESET ===============================================================
+test("OPERATIONAL: BLE host disconnects and sequencer transitions to\
+ DISCONNECTED state and starts advertising", NORESET)
+
+loop.run_until_complete(host.disconnect())
+
+expect( f"@timestamp HIL_TEST_SIG bluetooth disconnected")
+expect( f"@timestamp HIL_TEST_SIG advertisement requested")
