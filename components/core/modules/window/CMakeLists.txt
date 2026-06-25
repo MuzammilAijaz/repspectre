@@ -1,0 +1,24 @@
+add_library(windowAO INTERFACE)
+
+target_sources(windowAO INTERFACE
+    windowAO.c
+)
+
+# Public API
+target_include_directories(windowAO
+    INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+# C standard (propagates to users like tests)
+target_compile_features(windowAO INTERFACE c_std_11)
+
+target_link_libraries(windowAO
+    INTERFACE
+    qp-headers
+
+    module-api # for event signals; since its INTERFACE lib, directories included automaticaly
+)
+
+# Optional: alias (future-proof naming)
+add_library(window::ao ALIAS windowAO)
