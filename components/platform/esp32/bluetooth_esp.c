@@ -10,11 +10,16 @@
 #include "nimble/nimble_port_freertos.h"
 #include "host/ble_hs.h"
 #include "host/util/util.h"
+#include "qp.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 
+// core includes
 #include "bluetooth_esp.h"
 #include "BSP_esp.h"
+#include "bluetoothBridge.h"
+#include "criticalSection_esp.h"
+
 #include "soc/soc_caps.h" // for SOC_BT_SUPPORTED
 
 #include "esp_bt.h" // for esp_bt_controller_get_status()
@@ -34,6 +39,8 @@
 // }
 
 static uint8_t own_addr_type = 0;
+
+static const BluetoothBridge * s_bridge = NULL;
 
 // ---- Async BLE state flags ----------------------------------
 // Tracks BLE stack state shared across callbacks and application
@@ -213,8 +220,12 @@ static void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg)
     /* Registration lifecycle verification callback pointer */
 }
 
-static bool Bluetooth_init_adapter(BluetoothConfig config) {
+static bool Bluetooth_init_adapter(BluetoothConfig config, BluetoothBridge * const bridge) {
     if (is_initialized) return true;
+
+    //Q_ASSERT(bridge != NULL);
+
+    s_bridge = bridge;
 
 #ifdef CONFIG_IDF_TARGET_ESP32
     /* Release Classic BT memory region to reclaim heap RAM since we only use BLE */
@@ -438,12 +449,15 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg) {
                 trace_peer(event->connect.conn_handle,
                         "ServerCallbacks::onConnect - Client connected: ");
                 ble_gap_update_params(event->connect.conn_handle,
-                        &(struct ble_gap_upd_params) {
-                        .itvl_min = 24,
-                        .itvl_max = 48,
-                        .latency = 0,
-                        .supervision_timeout = 180,
-                        });
+                    &(struct ble_gap_upd_params) {
+                    .itvl_min = 24,
+                    .itvl_max = 48,
+                    .latency = 0,
+                    .supervision_timeout = 180,
+                });
+
+                bool result = BluetoothBridge_enqueueEdge(s_bridge, BLUETOOTH_EDGE_CONNECTED);
+                // //Q_ASSERT(result == true);
             }
             if (event->connect.status != 0 && is_advertising_active) {
                 /* Connection attempt aborted or failed; self-heal and auto-resume advertising */
@@ -452,11 +466,11 @@ static int ble_gap_event_handler(struct ble_gap_event *event, void *arg) {
             break;
 
         case BLE_GAP_EVENT_DISCONNECT:
-            /* CRITICAL RESILIENCE: Automated Self-Healing. Re-advertise instantly on client disconnection */
-            if (!is_advertising_active) {
-                Bluetooth_start_advertising();
-            }
+            is_advertising_active = false;
             // trace_bt("ServerCallbacks::onDisconnect - Client disconnected");
+
+            bool result = BluetoothBridge_enqueueEdge(s_bridge, BLUETOOTH_EDGE_DISCONNECTED);
+            // //Q_ASSERT(result == true);
             break;
 
         case BLE_GAP_EVENT_ADV_COMPLETE:
