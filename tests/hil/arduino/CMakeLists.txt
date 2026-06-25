@@ -345,8 +345,9 @@ add_hil_test(sequencer_test "sequencer_test"
 #         "${TESTS_DIR}/hil/arduino/bluetooth_test/bluetooth_test.py"
 # )
 
+# WARN: TESTS DO NOT WORK, need to refactor to new design
 # add_hil_test(bluetooth_test_esp "bluetooth_test"
-#     "platform-bsp-api;platform-esp32;qp-headers;hal-api"
+#     "platform-bsp-api;bluetoothAO;platform-esp32;qp-headers;hal-api"
 #
 #     EXTRA_SRCS
 #
