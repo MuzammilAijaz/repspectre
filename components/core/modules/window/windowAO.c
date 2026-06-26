@@ -88,7 +88,7 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
         case MPU_DATA_READY_SIG: {
 
             MpuBatchEvent const * batchEvt = (MpuBatchEvent const *)e;
-            SensorBatch const * inputBatch = batchEvt->batch;
+            SensorBatch const * inputBatch = &batchEvt->batch;
             uint16_t currentWindow = me->currentWindow;
 
             uint16_t current = me->windowArena.windows[currentWindow].batchesCount;

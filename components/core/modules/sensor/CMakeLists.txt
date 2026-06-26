@@ -20,7 +20,6 @@ target_link_libraries(sensorAO
     module-api # for event signals; since its INTERFACE lib, directories included automaticaly
     hal-api
     adc
-    windowAO # for g_windowAO
 )
 
 # Optional: alias (future-proof naming)

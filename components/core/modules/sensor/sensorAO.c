@@ -8,9 +8,6 @@
 
 #include "pub_sub_signals.h"
 #include "sensor.h"
-#include "windowAO.h" // for g_windowAO
-
-#define SENSOR_BATCH_POOL_COUNT 4
 
 Q_DEFINE_THIS_MODULE("SensorAO")
 
@@ -19,11 +16,6 @@ typedef struct {
     SensorConfig active_config;
     SensorInterface* sensor; // NOTE: pointer; for clear ownership
     SensorStatus status;
-
-    // why? -> maintains history/context to avoid overriding of data when sent
-    // from event as a pointer @see `MpuBatchEvent`
-    SensorBatch batchPool[SENSOR_BATCH_POOL_COUNT];
-    uint16_t writeIndex;
 } SensorAO;
 
 static QState SensorAO_initial(SensorAO *me, void const * par);
@@ -44,7 +36,6 @@ void SensorAO_ctor(const SensorInterface * const sensor) {
 
     QActive_ctor(&m_instance.super, Q_STATE_CAST(SensorAO_initial));
     m_instance.sensor = sensor;
-    m_instance.writeIndex = 0;
 
     g_sensorAO = &m_instance.super;
 }
@@ -129,16 +120,12 @@ QState SensorAO_initialized(SensorAO * me, const QEvt* e) {
 
         case MPU_FIFO_FULL: { // from ISR
 
-            SensorBatch * batch = &me->batchPool[me->writeIndex];
+            MpuBatchEvent * const mpuDataReadyEvent =
+                Q_NEW(MpuBatchEvent, MPU_DATA_READY_SIG);
 
-            if (me->sensor->Sensor_GetFifo(batch)) {
-                MpuBatchEvent * const mpuDataReadyEvent = Q_NEW(MpuBatchEvent, MPU_DATA_READY_SIG);
-                mpuDataReadyEvent->batch = batch;
-                QACTIVE_POST(g_windowAO, &mpuDataReadyEvent->super, me);
-
-                // go to the next index
-                me->writeIndex = (me->writeIndex + 1U) % SENSOR_BATCH_POOL_COUNT;
-            } // WARN: silent fail
+            if (me->sensor->Sensor_GetFifo(&mpuDataReadyEvent->batch)) {
+                QF_PUBLISH(&mpuDataReadyEvent->super, &me->super);
+            }
 
             rtn = Q_HANDLED();
             break;

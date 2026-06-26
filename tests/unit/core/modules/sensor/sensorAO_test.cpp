@@ -27,11 +27,12 @@
 // cpputest
 #include "CppUTest/TestHarness.h"
 
+#include <array>
+
 #include "sensor.h"
 #include "sensorAO.h"
 #include "pub_sub_signals.h"
 #include "Fake_Sensor.h"
-#include "windowAO.h" // for g_windowAO
 
 #include "unit_test_utils.hpp"
 
@@ -39,8 +40,6 @@
 TEST_GROUP(SensorAOGroup) {
 
     QActive* mUnderTest = nullptr; // Active Object under test
-
-    std::unique_ptr<cms::test::DefaultDummyActiveObject> dummy_windowAO = nullptr;
 
     // Storage for the event queue of the AO, holding 10 events max
     std::array<const QEvt*, 10> underTestEventQueueStorage;
@@ -50,9 +49,17 @@ TEST_GROUP(SensorAOGroup) {
 
     void setup() final {
         using namespace cms::test;
+        using cms::test::qf_ctrl::MemPoolConfig;
+        using cms::test::qf_ctrl::MemPoolConfigs;
 
         // Setup fake QP runtime with maximum signals and tick rate
-        qf_ctrl::Setup(200, 200);
+        const MemPoolConfigs memPools = {
+            MemPoolConfig{sizeof(uint64_t), 25},
+            MemPoolConfig{sizeof(uint64_t) * 5, 10},
+            MemPoolConfig{sizeof(MpuBatchEvent), 4},
+        };
+
+        qf_ctrl::Setup(200, 200, memPools);
 
         // Create Event Recorder ; a cpputest-for-qpc mechanism for recording events
         mRecorder = PublishedEventRecorder::CreatePublishedEventRecorder(
@@ -63,12 +70,9 @@ TEST_GROUP(SensorAOGroup) {
 
         setRecorder(mRecorder);
 
-        dummy_windowAO = setupDummyObject(&g_windowAO, qf_ctrl::DUMMY_AO_A_PRIORITY);
-
         SensorAO_ctor(&Fake_Sensor_interface);
         mUnderTest = g_sensorAO; // this will be out AO under test
         CHECK_TRUE(mUnderTest != nullptr);
-        CHECK_TRUE(dummy_windowAO != nullptr);
 
         Fake_Sensor_ctor();
 
@@ -77,16 +81,12 @@ TEST_GROUP(SensorAOGroup) {
     }
 
     void teardown() final {
-        flushDummyAOs();
-
         mock().checkExpectations();
 
         Fake_Sensor_dtor();
         SensorAO_dtor();
 
         mUnderTest = nullptr; // this will be out AO under test
-
-        dummy_windowAO = nullptr;
 
         // clears cpputest mock subsystem
         mock().clear();
@@ -95,17 +95,6 @@ TEST_GROUP(SensorAOGroup) {
         cms::test::qf_ctrl::Teardown();
 
         delete mRecorder;
-    }
-
-    /**
-     * @brief Drains all recorded events from Dummy Active Objects to prevent memory leaks.
-     */
-    void flushDummyAOs() {
-        if (dummy_windowAO) {
-            while (dummy_windowAO->isAnyEventRecorded()) {
-                (void)dummy_windowAO->getRecordedEvent(); // Pull and destroy
-            }
-        }
     }
 
     void startAOUnderTest() {
@@ -199,13 +188,10 @@ TEST(SensorAOGroup, GivenInitialized_WhenDataReady_ThenPublishesSensorDataEvent)
     auto* e = Q_NEW(QEvt, MPU_FIFO_FULL);
     qf_ctrl::PublishAndProcess(e, mRecorder);
 
-    auto recordedEvent = dummy_windowAO->getRecordedEvent();
-    CHECK_TRUE(recordedEvent != nullptr);
-    CHECK_EQUAL(MPU_DATA_READY_SIG, recordedEvent->sig);
-
+    auto recordedEvent = checkRecordedEventSignal(MPU_DATA_READY_SIG);
     auto responseEvt = reinterpret_cast<const MpuBatchEvent*>(recordedEvent.get());
 
-    CHECK_TRUE(responseEvt->batch->count >= BATCH_SAMPLE_COUNT);
+    CHECK_EQUAL(BATCH_SAMPLE_COUNT, responseEvt->batch.count);
 }
 
 // TODO: Edge cases for FIFO

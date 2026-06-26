@@ -25,6 +25,7 @@
 
 #include <array>
 
+#include "sensorAO.h"
 #include "windowAO.h"
 #include "pub_sub_signals.h"
 
@@ -43,9 +44,17 @@ TEST_GROUP(WindowAOGroup) {
 
     void setup() final {
         using namespace cms::test;
+        using cms::test::qf_ctrl::MemPoolConfig;
+        using cms::test::qf_ctrl::MemPoolConfigs;
 
         // Setup fake QP runtime with maximum signals and tick rate
-        qf_ctrl::Setup(200, 200);
+        const MemPoolConfigs memPools = {
+            MemPoolConfig{sizeof(uint64_t), 25},
+            MemPoolConfig{sizeof(uint64_t) * 5, 10},
+            MemPoolConfig{sizeof(MpuBatchEvent), 4},
+        };
+
+        qf_ctrl::Setup(200, 200, memPools);
 
         // Create Event Recorder ; a cpputest-for-qpc mechanism for recording events
         mRecorder = PublishedEventRecorder::CreatePublishedEventRecorder(
@@ -116,7 +125,7 @@ TEST_GROUP(WindowAOGroup) {
             batch.samples[j] = {a, a, a, j + 1};
         }
         auto* e = Q_NEW(MpuBatchEvent, MPU_DATA_READY_SIG);
-        e->batch = &batch;
+        e->batch = batch;
         qf_ctrl::PublishAndProcess(&e->super, mRecorder);
     }
 
@@ -162,7 +171,7 @@ TEST(WindowAOGroup, GivenAccumulating_WhenOneSensorBatchArrives_ThenAppendBatchI
     }
 
     auto* e = Q_NEW(MpuBatchEvent, MPU_DATA_READY_SIG);
-    e->batch = &batch;
+    e->batch = batch;
 
     qf_ctrl::PublishAndProcess(&e->super, mRecorder);
 
@@ -219,7 +228,7 @@ TEST(WindowAOGroup, GivenAccumulating_WhenExactWindowSizeIsReached_ThenPublishWi
     }
 
     auto e = checkRecordedEventSignal(WINDOW_READY_SIG);
-    auto event = reinterpret_cast<const WindowReadyEvent*>(e.get());
+    (void)reinterpret_cast<const WindowReadyEvent*>(e.get());
 }
 
 //===== Overflown arena ========================================================
@@ -252,4 +261,3 @@ TEST(WindowAOGroup, GivenAccumulating_WhenExactWindowSizeIsReached_ThenPublishWi
 //==============================================================================
 
 // TODO: GivenError_WhenFaultOccurs_ThenExposeRecoverabilitySignal
-

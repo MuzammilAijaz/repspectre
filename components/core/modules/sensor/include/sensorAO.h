@@ -21,7 +21,7 @@ typedef struct {
 
 typedef struct {
     QEvt super;
-    SensorBatch const * batch;
+    SensorBatch batch;
 } MpuBatchEvent;
 
 /**
