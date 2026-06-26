@@ -1,7 +1,13 @@
 #include "qpc.h"
+#include "sensorAO.h"
+
 #include <stdlib.h>
 
-void QF_onStartup(void) {}
+static QF_MPOOL_EL(MpuBatchEvent) s_largePoolSto[4];
+
+void QF_onStartup(void) {
+    QF_poolInit(s_largePoolSto, sizeof(s_largePoolSto), sizeof(s_largePoolSto[0]));
+}
 void QF_onCleanup(void) {}
 void QF_onClockTick(void) {}
 
