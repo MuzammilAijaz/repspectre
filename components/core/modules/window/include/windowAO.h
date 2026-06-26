@@ -17,9 +17,27 @@ extern "C" {
 #define WINDOW_BATCH_COUNT         (WINDOW_SAMPLE_COUNT / BATCH_SAMPLE_COUNT)
 #define ARENA_WINDOW_COUNT         4U    // 2.56 seconds of data
 
+/**
+ * @brief The states a particular window can be in. 
+ *
+ * Helps avoid concurrent read / write when inference rate > collection rate
+ * by signaling that a window is being used by the inference engine.
+ */
+typedef enum {
+    /** Inference has already been performed on this block, needs to written to. */
+    WINDOW_STATE_FREE = 0,
+    /** Window is being filled by WindowAO */
+    WINDOW_STATE_FILLING,
+    /** Window is ready to be ran inference on */
+    WINDOW_STATE_READY,
+    /** Inference begin performed */
+    WINDOW_STATE_PROCESSING
+} WindowState;
+
 typedef struct {
     uint16_t batchesCount;
     SensorBatch batches[WINDOW_BATCH_COUNT];
+    WindowState state;
 } WindowBuffer;
 
 typedef struct {

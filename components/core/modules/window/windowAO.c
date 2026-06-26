@@ -29,7 +29,9 @@ void WindowAO_ctor(void) {
     QActive_ctor(&m_instance.super, Q_STATE_CAST(WindowAO_initial));
     m_instance.currentWindow = 0;
     memset(&m_instance.windowArena, 0, sizeof(m_instance.windowArena));
+    // init current window
     m_instance.windowArena.windows[m_instance.currentWindow].batchesCount = 0;
+    m_instance.windowArena.windows[m_instance.currentWindow].state = WINDOW_STATE_FILLING;
 
     g_windowAO = &m_instance.super;
 }

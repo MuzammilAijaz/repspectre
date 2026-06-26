@@ -147,9 +147,6 @@ TEST(WindowAOGroup, GivenIdle_WhenWindowingRequest_ThenMoveToAccumulatingState)
     CHECK_TRUE(WindowAO_isInState(STATE_ACCUMULATING));
 }
 
-//==============================================================================
-// | Window Assembly
-//==============================================================================
 // Sample < Batch < Window < Arena
 
 //===== Arena indexing =========================================================
@@ -201,6 +198,15 @@ TEST(WindowAOGroup, GivenAccumulating_WhenBatchOverflowsWindow_ThenKeepAppending
     CHECK_EQUAL(1, WindowAO_getCurrentWindowIndex());
 }
 
+//===== Managing Window States =================================================
+
+// TODO: initial state should be filling
+// TODO: @inferenceAO_test.cpp when actively inferencing on the window = processing
+// TODO: @inferenceAO_test.cpp when infernecing done change to FREE
+// TODO: when done with window, make it ready (for inference)
+// TODO: when moving to another window, check if its free before writing to it. ; its free
+// TODO: when moving to another window, check if its free before writing to it. ; its not free
+
 //===== Communication ==========================================================
 
 TEST(WindowAOGroup, GivenAccumulating_WhenExactWindowSizeIsReached_ThenPublishWindowReady)
@@ -220,21 +226,24 @@ TEST(WindowAOGroup, GivenAccumulating_WhenExactWindowSizeIsReached_ThenPublishWi
 
 // TODO: TEST(WindowAOGroup, GivenAccumulating_WhenBatchOverflowsArena_Then???)
 
+//===== Overlap and Stride =====================================================
+
+// TODO: GivenAccumulating_WhenNextBatchArrives_ThenAdvanceByConfiguredStride
+
+// TODO: the second infernece run should be given stride + window_size as the window
+
 //==============================================================================
 // | Backpressured
 //==============================================================================
+// given no FREE windows; apply appropriate/selected strategy
 
 // TODO: GivenBackpressured_WhenInferenceIsSlow_ThenApplyConfiguredPolicy
 
-//==============================================================================
-// | Retaining
-//==============================================================================
+//===== Retaining ==============================================================
 
 // TODO: GivenRetaining_WhenNewSamplesArrive_ThenPreserveSharedHistory
 
-//==============================================================================
-// | Dropping
-//==============================================================================
+//===== Dropping ===============================================================
 
 // TODO: GivenDropping_WhenOverflowOccurs_ThenDiscardAsConfigured
 
@@ -244,8 +253,3 @@ TEST(WindowAOGroup, GivenAccumulating_WhenExactWindowSizeIsReached_ThenPublishWi
 
 // TODO: GivenError_WhenFaultOccurs_ThenExposeRecoverabilitySignal
 
-//==============================================================================
-// | Overlap and Stride
-//==============================================================================
-
-// TODO: GivenAccumulating_WhenNextBatchArrives_ThenAdvanceByConfiguredStride
