@@ -1,3 +1,20 @@
+///*****************************************************************************
+/// WindowAO Tests
+///-----------------------------------------------------------------------------
+///
+/// Expected States:
+/// ----------------
+///   WindowAO                 
+///   ├── idle                 : initialized, but no processing done;
+///   │                             -> this assumes inference is off as well
+///   ├── accumulating         : actively working to build a window
+///   │   └── backpressured    : when inference < sensor data
+///   │       ├── retaining    : aggregation, instead of simply dropping data
+///   │       └── dropping     : remove/override oldest data
+///   └── error                : exists for recoverability/logging.
+///   
+///*****************************************************************************
+
 // cpputest-for-qpc
 #include "cmsTestPublishedEventRecorder.hpp"
 #include "cms_cpputest_qf_ctrl.hpp"
@@ -5,6 +22,8 @@
 
 // cpputest
 #include "CppUTest/TestHarness.h"
+
+#include <array>
 
 #include "windowAO.h"
 #include "pub_sub_signals.h"
@@ -75,10 +94,158 @@ TEST_GROUP(WindowAOGroup) {
         );
 
         qf_ctrl::ProcessEvents();
+
+        CHECK_TRUE(WindowAO_isInState(STATE_IDLE));
+    }
+
+    void startAOUnderTestAndMoveToAccumulatingState() {
+        using namespace cms::test;
+        startAOUnderTest();
+
+        auto* e = Q_NEW(QEvt, START_WINDOWING_SIG);
+        qf_ctrl::PublishAndProcess(e, mRecorder);
+
+        CHECK_TRUE(WindowAO_isInState(STATE_ACCUMULATING));
+    }
+
+    void sendMpuDataReadySignalWithEmptyBatch() {
+        using namespace cms::test;
+        SensorBatch batch = {};
+        for (uint32_t j = 0; j < BATCH_SAMPLE_COUNT; ++j) {
+            Axis3f a{0.0f, 0.0f, 0.0f};
+            batch.samples[j] = {a, a, a, j + 1};
+        }
+        auto* e = Q_NEW(MpuBatchEvent, MPU_DATA_READY_SIG);
+        e->batch = &batch;
+        qf_ctrl::PublishAndProcess(&e->super, mRecorder);
     }
 
 };
 
-TEST(WindowAOGroup, GivenUninitialized_whenInitialized_thenChangeToUninitializedState) {
+using namespace cms::test;
+
+//==============================================================================
+// | Idle
+//==============================================================================
+
+TEST(WindowAOGroup, GivenConstructed_WhenStarted_ThenEntersIdleState)
+{
     startAOUnderTest();
 }
+
+//==============================================================================
+// | Accumulating
+//==============================================================================
+
+TEST(WindowAOGroup, GivenIdle_WhenWindowingRequest_ThenMoveToAccumulatingState)
+{
+    startAOUnderTest();
+
+    auto* e = Q_NEW(QEvt, START_WINDOWING_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+
+    CHECK_TRUE(WindowAO_isInState(STATE_ACCUMULATING));
+}
+
+//==============================================================================
+// | Window Assembly
+//==============================================================================
+// Sample < Batch < Window < Arena
+
+//===== Arena indexing =========================================================
+
+TEST(WindowAOGroup, GivenAccumulating_WhenOneSensorBatchArrives_ThenAppendBatchIntoArena)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    SensorBatch batch = {};
+    for (uint32_t i = 0; i < BATCH_SAMPLE_COUNT; ++i) {
+        Axis3f a{0.0f, 0.0f, 0.0f};
+        batch.samples[i] = {a, a, a, i + 1};
+    }
+
+    auto* e = Q_NEW(MpuBatchEvent, MPU_DATA_READY_SIG);
+    e->batch = &batch;
+
+    qf_ctrl::PublishAndProcess(&e->super, mRecorder);
+
+    CHECK_EQUAL(BATCH_SAMPLE_COUNT, WindowAO_accumulatedSampleCount());
+}
+
+TEST(WindowAOGroup, GivenAccumulating_WhenMultipleBatchesArrive_ThenAccumulateUntilWindowSize)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    // fill a whole window
+    for (uint32_t i = 0; i < WINDOW_BATCH_COUNT; i++) {
+        sendMpuDataReadySignalWithEmptyBatch();
+    }
+    checkRecordedEventSignal(WINDOW_READY_SIG); // side-affect
+
+    // a single window would be full
+    CHECK_EQUAL(WINDOW_BATCH_COUNT * BATCH_SAMPLE_COUNT, WindowAO_accumulatedSampleCount());
+}
+
+TEST(WindowAOGroup, GivenAccumulating_WhenBatchOverflowsWindow_ThenKeepAppendingToNextWindow)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    // fill a whole window + 1 extra
+    for (uint32_t i = 0; i < WINDOW_BATCH_COUNT + 1; i++) {
+        sendMpuDataReadySignalWithEmptyBatch();
+    }
+    checkRecordedEventSignal(WINDOW_READY_SIG); // side-affect
+
+    // a single window would be full + 1
+    CHECK_EQUAL( (WINDOW_BATCH_COUNT + 1) * BATCH_SAMPLE_COUNT, WindowAO_accumulatedSampleCount());
+    CHECK_EQUAL(1, WindowAO_getCurrentWindowIndex());
+}
+
+//===== Communication ==========================================================
+
+TEST(WindowAOGroup, GivenAccumulating_WhenExactWindowSizeIsReached_ThenPublishWindowReady)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    // fill a whole window
+    for (uint32_t i = 0; i < WINDOW_BATCH_COUNT; i++) {
+        sendMpuDataReadySignalWithEmptyBatch();
+    }
+
+    auto e = checkRecordedEventSignal(WINDOW_READY_SIG);
+    auto event = reinterpret_cast<const WindowReadyEvent*>(e.get());
+}
+
+//===== Overflown arena ========================================================
+
+// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenBatchOverflowsArena_Then???)
+
+//==============================================================================
+// | Backpressured
+//==============================================================================
+
+// TODO: GivenBackpressured_WhenInferenceIsSlow_ThenApplyConfiguredPolicy
+
+//==============================================================================
+// | Retaining
+//==============================================================================
+
+// TODO: GivenRetaining_WhenNewSamplesArrive_ThenPreserveSharedHistory
+
+//==============================================================================
+// | Dropping
+//==============================================================================
+
+// TODO: GivenDropping_WhenOverflowOccurs_ThenDiscardAsConfigured
+
+//==============================================================================
+// | Error
+//==============================================================================
+
+// TODO: GivenError_WhenFaultOccurs_ThenExposeRecoverabilitySignal
+
+//==============================================================================
+// | Overlap and Stride
+//==============================================================================
+
+// TODO: GivenAccumulating_WhenNextBatchArrives_ThenAdvanceByConfiguredStride

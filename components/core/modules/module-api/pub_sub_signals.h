@@ -44,6 +44,11 @@ typedef enum PubSubSignal {
     MPU_FIFO_FULL,
     MPU_DATA_READY_SIG,
 
+    // ---- Window -------------------------------------------------
+
+    START_WINDOWING_SIG,
+    WINDOW_READY_SIG,
+
     // ---- Error --------------------------------------------------
 
     /** WHEN: No ACK from device, SDA stuck low */

@@ -18,6 +18,8 @@ target_link_libraries(windowAO
     qp-headers
 
     module-api # for event signals; since its INTERFACE lib, directories included automaticaly
+    hal-api
+    sensorAO
 )
 
 # Optional: alias (future-proof naming)

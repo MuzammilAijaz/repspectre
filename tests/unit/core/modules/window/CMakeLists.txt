@@ -10,6 +10,8 @@ set_target_properties(windowAO_test PROPERTIES
 
 target_compile_features(windowAO_test PRIVATE cxx_std_17)
 
+target_compile_definitions(windowAO_test PRIVATE CPPUTEST)
+
 target_include_directories(windowAO_test
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
