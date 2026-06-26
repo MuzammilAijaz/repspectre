@@ -11,6 +11,8 @@ extern "C" {
 #define SENSOR_MAX_CALIB_LOOPS 10
 #define SENSOR_MAX_SAMPLE_RATE 1000
 
+#define BATCH_SAMPLE_COUNT         8U
+
 typedef struct {
     float x;
     float y;
@@ -23,6 +25,11 @@ typedef struct {
     Axis3f mag;
     uint32_t timestamp;
 } SensorData;
+
+typedef struct {
+    uint16_t count;
+    SensorData samples[BATCH_SAMPLE_COUNT];
+} SensorBatch;
 
 typedef struct {
     uint16_t sample_rate_hz;
@@ -46,7 +53,7 @@ typedef struct {
     bool (*Sensor_readAcc)(Axis3f *acc);
 
     /** Returns all data from FIFO queue */
-    Axis3f* (*Sensor_GetFifo)();
+    bool (*Sensor_GetFifo)(SensorBatch * const out);
 } SensorInterface;
 
 void Sensor_init(void);

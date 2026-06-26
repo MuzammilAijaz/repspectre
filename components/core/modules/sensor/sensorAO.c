@@ -1,11 +1,16 @@
 #include "sensorAO.h"
 
+#include <string.h>
+
 #include "qp.h"
 #include "qpc.h"
 #include "qsafe.h"
 
 #include "pub_sub_signals.h"
 #include "sensor.h"
+#include "windowAO.h" // for g_windowAO
+
+#define SENSOR_BATCH_POOL_COUNT 4
 
 Q_DEFINE_THIS_MODULE("SensorAO")
 
@@ -14,6 +19,11 @@ typedef struct {
     SensorConfig active_config;
     SensorInterface* sensor; // NOTE: pointer; for clear ownership
     SensorStatus status;
+
+    // why? -> maintains history/context to avoid overriding of data when sent
+    // from event as a pointer @see `MpuBatchEvent`
+    SensorBatch batchPool[SENSOR_BATCH_POOL_COUNT];
+    uint16_t writeIndex;
 } SensorAO;
 
 static QState SensorAO_initial(SensorAO *me, void const * par);
@@ -26,6 +36,7 @@ static SensorAO m_instance; // private member variable
 QActive * g_sensorAO = NULL; // NOTE: only access this AFTER SensorAO_ctor() called
 
 void SensorAO_ctor(const SensorInterface * const sensor) {
+    memset(&m_instance, 0, sizeof(m_instance));
     Q_ASSERT(sensor);
     Q_ASSERT(sensor->Sensor_init != NULL);
     Q_ASSERT(sensor->Sensor_readGyro != NULL);
@@ -33,6 +44,7 @@ void SensorAO_ctor(const SensorInterface * const sensor) {
 
     QActive_ctor(&m_instance.super, Q_STATE_CAST(SensorAO_initial));
     m_instance.sensor = sensor;
+    m_instance.writeIndex = 0;
 
     g_sensorAO = &m_instance.super;
 }
@@ -117,18 +129,16 @@ QState SensorAO_initialized(SensorAO * me, const QEvt* e) {
 
         case MPU_FIFO_FULL: { // from ISR
 
-            MpuDataEvent * const mpuDataReadyEvent =
-                Q_NEW(MpuDataEvent, MPU_DATA_READY_SIG);
+            SensorBatch * batch = &me->batchPool[me->writeIndex];
 
-            // read from Sensor HAL
-            Axis3f* data = me->sensor->Sensor_GetFifo();
+            if (me->sensor->Sensor_GetFifo(batch)) {
+                MpuBatchEvent * const mpuDataReadyEvent = Q_NEW(MpuBatchEvent, MPU_DATA_READY_SIG);
+                mpuDataReadyEvent->batch = batch;
+                QACTIVE_POST(g_windowAO, &mpuDataReadyEvent->super, me);
 
-            // CAUTION: Data pointing to another module/layer (Sensor)
-            mpuDataReadyEvent->data = data;
-
-            // send confirmation of initialization to whole system
-            // TODO: change to QACTIVE_POST after implementing LightInferenceAO
-            QF_PUBLISH(&mpuDataReadyEvent->super, &me->super);
+                // go to the next index
+                me->writeIndex = (me->writeIndex + 1U) % SENSOR_BATCH_POOL_COUNT;
+            } // WARN: silent fail
 
             rtn = Q_HANDLED();
             break;

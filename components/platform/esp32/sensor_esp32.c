@@ -36,8 +36,12 @@ static void IRAM_ATTR mpuISR(void* arg);
 static mpu6050Quaternion_t q;           // [w, x, y, z]         quaternion container
 static mpu6050VectorFloat_t gravity;    // [x, y, z]            gravity vector
 static float ypr[3];                    // [yaw, pitch, roll]   yaw/pitch/roll container
-/* NOTE: In-memory representation of FIFO inside mpu6050 */
-static uint8_t fifoBuffer[64];
+
+/**
+ * @brief In-memory representation of FIFO inside mpu6050
+ * NOTE: this is the size for mpu6050, the size of mpu6500 fifo is 512
+ */
+static uint8_t fifoBuffer[1024];
 
 void mpu6050_DICTIONARY(void) {
     QS_FUN_DICTIONARY(&mpuISR);
@@ -313,25 +317,69 @@ static bool mpu6050_readAcc_adapter(Axis3f *acc)
     return true;
 }
 
-static Axis3f* mpu6050_getFifo_adapter(void)
+// TODO: write tests for this (in a seperate test module not sensorAO or hil-sensor)
+static bool mpu6050_getFifo_adapter(SensorBatch * const outBatch)
 {
-    static Axis3f yprAxis;
-
-    // Read latest complete DMP packet from FIFO
-    if (mpu6050DmpGetCurrentFIFOPacket(fifoBuffer) != 0) {
-        return NULL;
+    if (outBatch == NULL) {
+        return false;
     }
 
-    // Decode quaternion -> gravity -> yaw/pitch/roll
-    mpu6050DmpGetQuaternion(&q, fifoBuffer);
-    mpu6050DmpGetGravity(&gravity, &q);
-    mpu6050DmpGetYawPitchRoll(ypr, &q, &gravity);
+    outBatch->count = 0U;
 
-    yprAxis.x = ypr[0];
-    yprAxis.y = ypr[1];
-    yprAxis.z = ypr[2];
+    // DMP packet size from MPU driver
+    uint16_t const packetSize = mpu6050DmpGetFIFOPacketSize();
 
-    return &yprAxis;
+    // Total bytes currently waiting in FIFO
+    uint16_t fifoCount = mpu6050GetFIFOCount();
+
+    // Number of complete packets available
+    uint16_t packetCount = fifoCount / packetSize;
+
+    // Clamp to batch capacity
+    if (packetCount > BATCH_SAMPLE_COUNT) {
+        packetCount = BATCH_SAMPLE_COUNT;
+    }
+
+    for (uint16_t i = 0U; i < packetCount; i++) {
+
+        // Read one complete packet from FIFO
+        mpu6050GetFIFOBytes(fifoBuffer, packetSize);
+
+        SensorData * const sample = &outBatch->samples[i];
+
+        // Quaternion / gravity / yaw-pitch-roll
+        mpu6050DmpGetQuaternion(&q, fifoBuffer);
+        mpu6050DmpGetGravity(&gravity, &q);
+        mpu6050DmpGetYawPitchRoll(ypr, &q, &gravity);
+
+        // Raw accel
+        mpu6050VectorInt16_t aa;
+        mpu6050DmpGetAccel(&aa, fifoBuffer);
+        sample->accel.x = (float)aa.x;
+        sample->accel.y = (float)aa.y;
+        sample->accel.z = (float)aa.z;
+
+        // Raw gyro
+        mpu6050VectorInt16_t gg;
+        mpu6050DmpGetGyro(&gg, fifoBuffer);
+        sample->gyro.x = (float)gg.x;
+        sample->gyro.y = (float)gg.y;
+        sample->gyro.z = (float)gg.z;
+
+        // Magnetometer
+        // MPU6050/6500 DMP usually does not provide magnetometer data
+        // unless external AK8963/etc is configured.
+        sample->mag.x = 0.0f;
+        sample->mag.y = 0.0f;
+        sample->mag.z = 0.0f;
+
+        // Timestamp
+        sample->timestamp = (uint32_t)esp_timer_get_time();
+
+        outBatch->count++;
+    }
+
+    return (outBatch->count > 0U);
 }
 
 SensorInterface espSensorInterface = {

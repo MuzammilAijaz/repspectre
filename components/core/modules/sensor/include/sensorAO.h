@@ -21,8 +21,8 @@ typedef struct {
 
 typedef struct {
     QEvt super;
-    Axis3f* data;
-} MpuDataEvent;
+    SensorBatch const * batch;
+} MpuBatchEvent;
 
 /**
  * Opaque pointer to the active object

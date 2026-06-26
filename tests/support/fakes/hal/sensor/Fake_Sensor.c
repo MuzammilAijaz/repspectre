@@ -1,4 +1,5 @@
 #include "Fake_Sensor.h"
+#include "sensorAO.h"
 #include <stdlib.h>
 #include <memory.h>
 
@@ -26,8 +27,10 @@ SensorStatus Fake_Sensor_init(SensorConfig config) {
     return status;
 }
 
-Axis3f* Fake_Sensor_GetFifo() {
-    return sensorFifo;
+bool Fake_Sensor_GetFifo(SensorBatch * const out) {
+    SensorBatch * batch = (SensorBatch *) out;
+    batch->count = BATCH_SAMPLE_COUNT;
+    return 1;
 }
 
 SensorInterface Fake_Sensor_interface = {
