@@ -173,6 +173,16 @@ TEST(WindowAOGroup, GivenIdle_WhenWindowingRequest_ThenMoveToAccumulatingStateAn
     CHECK_EQUAL(WRITE_LOCATION_SIG, recordedEvent->sig);
 }
 
+TEST(WindowAOGroup, GivenIdle_WhenWindowingRequest_ThenSetAllWindowsAsFree)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    WindowArena* arena = WindowAO_getArena();
+    for (int i = 0; i < ARENA_WINDOW_COUNT; i++) {
+        CHECK_EQUAL(WINDOW_STATE_FREE, arena->windows[i].state);
+    }
+}
+
 // Sample < Batch < Window < Arena
 
 //===== Arena indexing =========================================================

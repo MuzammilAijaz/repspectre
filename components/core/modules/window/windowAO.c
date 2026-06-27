@@ -80,6 +80,11 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
     switch (e->sig) {
 
         case Q_ENTRY_SIG: {
+            // set all windows to free initially
+            for (int i = 0; i < ARENA_WINDOW_COUNT; i++) {
+                me->arena.windows[i].state = WINDOW_STATE_FREE;
+            }
+
             // lease memory to SensorAO so it can start filling window
             WriteLocationEvent * const evt =
                 Q_NEW(WriteLocationEvent, WRITE_LOCATION_SIG);
