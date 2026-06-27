@@ -30,6 +30,7 @@
 #include <array>
 
 #include "sensor.h"
+#include "windowAO.h"
 #include "sensorAO.h"
 #include "pub_sub_signals.h"
 #include "Fake_Sensor.h"
@@ -40,6 +41,8 @@
 TEST_GROUP(SensorAOGroup) {
 
     QActive* mUnderTest = nullptr; // Active Object under test
+
+    std::unique_ptr<cms::test::DefaultDummyActiveObject> dummy_windowAO = nullptr;
 
     // Storage for the event queue of the AO, holding 10 events max
     std::array<const QEvt*, 10> underTestEventQueueStorage;
@@ -69,9 +72,12 @@ TEST_GROUP(SensorAOGroup) {
 
         setRecorder(mRecorder);
 
+        dummy_windowAO = setupDummyObject(&g_windowAO, qf_ctrl::DUMMY_AO_A_PRIORITY);
+
         SensorAO_ctor(&Fake_Sensor_interface);
         mUnderTest = g_sensorAO; // this will be out AO under test
         CHECK_TRUE(mUnderTest != nullptr);
+        CHECK_TRUE(dummy_windowAO != nullptr);
 
         Fake_Sensor_ctor();
 
@@ -80,12 +86,15 @@ TEST_GROUP(SensorAOGroup) {
     }
 
     void teardown() final {
+        flushDummyAOs();
+
         mock().checkExpectations();
 
         Fake_Sensor_dtor();
         SensorAO_dtor();
 
         mUnderTest = nullptr; // this will be out AO under test
+        dummy_windowAO = nullptr;
 
         // clears cpputest mock subsystem
         mock().clear();
@@ -94,6 +103,22 @@ TEST_GROUP(SensorAOGroup) {
         cms::test::qf_ctrl::Teardown();
 
         delete mRecorder;
+    }
+
+    /**
+     * @brief Drains all recorded events from Dummy Active Objects to prevent memory leaks.
+     *
+     * Since the SequencerAO posts multiple events from the global pool (Q_NEW),
+     * any event not explicitly retrieved via getRecordedEvent() remains allocated
+     * in the dummy's internal recorder. This function flushes those queues to
+     * ensure all pool memory is returned to the framework before test teardown.
+     */
+    void flushDummyAOs() {
+        if (dummy_windowAO) {
+            while (dummy_windowAO->isAnyEventRecorded()) {
+                (void)dummy_windowAO->getRecordedEvent(); // Pull and destroy
+            }
+        }
     }
 
     void startAOUnderTest() {
