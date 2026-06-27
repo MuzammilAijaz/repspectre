@@ -42,7 +42,7 @@ typedef enum PubSubSignal {
     MPU_INITIALIZED_SIG,
     MPU_UNINITIALIZED_SIG,
     MPU_FIFO_FULL,
-    MPU_DATA_READY_SIG,
+    SAMPLES_WRITTEN_SIG,
 
     // ---- Window -------------------------------------------------
 

@@ -22,11 +22,10 @@ typedef struct {
 /**
  * @brief `SensorAO` has successfully written data and lets the `WindowAO`
  * know, so that it can send another `WriteLocationEvent`.
- * REFACTOR: move to  sensorAO.h
+ * REFACTOR: shift to a normal event signal, if not data is required.
  */
 typedef struct {
     QEvt super;
-    uint16_t samplesWritten;
 } SamplesWrittenEvent;
 
 #ifdef __cplusplus

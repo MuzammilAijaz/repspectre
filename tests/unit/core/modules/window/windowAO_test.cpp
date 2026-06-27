@@ -51,7 +51,6 @@ TEST_GROUP(WindowAOGroup) {
         const MemPoolConfigs memPools = {
             MemPoolConfig{sizeof(uint64_t), 25},
             MemPoolConfig{sizeof(uint64_t) * 5, 10},
-            MemPoolConfig{sizeof(MpuBatchEvent), 4},
         };
 
         qf_ctrl::Setup(200, 200, memPools);
@@ -124,8 +123,8 @@ TEST_GROUP(WindowAOGroup) {
             Axis3f a{0.0f, 0.0f, 0.0f};
             batch.samples[j] = {a, a, a, j + 1};
         }
-        auto* e = Q_NEW(MpuBatchEvent, MPU_DATA_READY_SIG);
-        e->batch = batch;
+        batch.count = BATCH_SAMPLE_COUNT;
+        auto* e = Q_NEW(SamplesWrittenEvent, SAMPLES_WRITTEN_SIG);
         qf_ctrl::PublishAndProcess(&e->super, mRecorder);
     }
 
@@ -170,9 +169,7 @@ TEST(WindowAOGroup, GivenAccumulating_WhenOneSensorBatchArrives_ThenAppendBatchI
         batch.samples[i] = {a, a, a, i + 1};
     }
 
-    auto* e = Q_NEW(MpuBatchEvent, MPU_DATA_READY_SIG);
-    e->batch = batch;
-
+    auto* e = Q_NEW(SamplesWrittenEvent, SAMPLES_WRITTEN_SIG);
     qf_ctrl::PublishAndProcess(&e->super, mRecorder);
 
     CHECK_EQUAL(BATCH_SAMPLE_COUNT, WindowAO_accumulatedSampleCount());

@@ -3,11 +3,7 @@
 
 #include <stdlib.h>
 
-static QF_MPOOL_EL(MpuBatchEvent) s_largePoolSto[4];
-
-void QF_onStartup(void) {
-    QF_poolInit(s_largePoolSto, sizeof(s_largePoolSto), sizeof(s_largePoolSto[0]));
-}
+void QF_onStartup(void) {}
 void QF_onCleanup(void) {}
 void QF_onClockTick(void) {}
 

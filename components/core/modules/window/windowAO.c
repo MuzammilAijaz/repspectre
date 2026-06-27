@@ -44,7 +44,7 @@ QState WindowAO_initial(WindowAO * const me, void const * const par) {
     Q_UNUSED_PAR(par);
 
     QActive_subscribe(&me->super, START_WINDOWING_SIG);
-    QActive_subscribe(&me->super, MPU_DATA_READY_SIG);
+    QActive_subscribe(&me->super, SAMPLES_WRITTEN_SIG);
 
     return Q_TRAN(&WindowAO_idle);
 }
@@ -85,8 +85,7 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
             break;
         }
 
-        case MPU_DATA_READY_SIG: {
-
+        case SAMPLES_WRITTEN_SIG: {
             MpuBatchEvent const * batchEvt = (MpuBatchEvent const *)e;
             SensorBatch const * inputBatch = &batchEvt->batch;
             uint16_t currentWindow = me->currentWindow;

@@ -7,7 +7,7 @@
 /// The SensorAO Active Object handles the lifecycle of the sensor, including:
 /// - Initialization on receiving INITIALIZE_MPU_SIG
 /// - Data processing triggered by the MPU_FIFO_FULL event, which publishes
-/// MPU_DATA_READY_SIG
+/// SAMPLES_WRITTEN_SIG
 /// - Transitioning to error state and publishing error events (e.g.,
 /// ERROR_SENSOR_I2C_MASTER) if initialization fails
 ///
@@ -56,7 +56,6 @@ TEST_GROUP(SensorAOGroup) {
         const MemPoolConfigs memPools = {
             MemPoolConfig{sizeof(uint64_t), 25},
             MemPoolConfig{sizeof(uint64_t) * 5, 10},
-            MemPoolConfig{sizeof(MpuBatchEvent), 4},
         };
 
         qf_ctrl::Setup(200, 200, memPools);

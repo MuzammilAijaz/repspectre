@@ -19,11 +19,6 @@ typedef struct {
     SensorConfig config;
 } SensorAOMpuInitializedResponseEvent;
 
-typedef struct {
-    QEvt super;
-    SensorBatch batch;
-} MpuBatchEvent;
-
 /**
  * Opaque pointer to the active object
  *
