@@ -53,7 +53,7 @@ typedef struct {
     bool (*Sensor_readAcc)(Axis3f *acc);
 
     /** Returns all data from FIFO queue */
-    bool (*Sensor_GetFifo)(SensorBatch * const out);
+    uint32_t (*Sensor_GetFifo)(SensorData * const out, uint32_t maxSamplesToWrite);
 } SensorInterface;
 
 void Sensor_init(void);

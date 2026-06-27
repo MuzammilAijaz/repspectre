@@ -11,6 +11,7 @@
 #include "mpu6050.h"
 #include "i2c.h"
 #include "qpc.h"
+#include <stdint.h>
 
 Q_DEFINE_THIS_MODULE("SensorEsp32")
 
@@ -318,13 +319,11 @@ static bool mpu6050_readAcc_adapter(Axis3f *acc)
 }
 
 // TODO: write tests for this (in a seperate test module not sensorAO or hil-sensor)
-static bool mpu6050_getFifo_adapter(SensorBatch * const outBatch)
+static uint32_t mpu6050_getFifo_adapter(SensorData * const out, uint32_t maxSamplesToWrite)
 {
-    if (outBatch == NULL) {
-        return false;
+    if (out == NULL) {
+        return 0;
     }
-
-    outBatch->count = 0U;
 
     // DMP packet size from MPU driver
     uint16_t const packetSize = mpu6050DmpGetFIFOPacketSize();
@@ -334,23 +333,30 @@ static bool mpu6050_getFifo_adapter(SensorBatch * const outBatch)
 
     // Number of complete packets available
     uint16_t packetCount = fifoCount / packetSize;
+    if (packetCount == 0) { return 0; }
 
-    // Clamp to batch capacity
-    if (packetCount > BATCH_SAMPLE_COUNT) {
-        packetCount = BATCH_SAMPLE_COUNT;
+    // Clamp to max capacity
+    if (packetCount > maxSamplesToWrite) {
+        packetCount = maxSamplesToWrite;
     }
 
     for (uint16_t i = 0U; i < packetCount; i++) {
 
+        // fifo count rechecked every iteration to see if it changed mid function
+        // RESEARCH: might not be necessary as its only 200hz
+        fifoCount = mpu6050GetFIFOCount();
+        if (fifoCount < packetSize) break;
+
+        // TODO: add verification
         // Read one complete packet from FIFO
         mpu6050GetFIFOBytes(fifoBuffer, packetSize);
 
-        SensorData * const sample = &outBatch->samples[i];
+        SensorData * const sample = &out[i];
 
         // Quaternion / gravity / yaw-pitch-roll
         mpu6050DmpGetQuaternion(&q, fifoBuffer);
         mpu6050DmpGetGravity(&gravity, &q);
-        mpu6050DmpGetYawPitchRoll(ypr, &q, &gravity);
+        mpu6050DmpGetYawPitchRoll(ypr, &q, &gravity); // WARN: ypr unused in this function...
 
         // Raw accel
         mpu6050VectorInt16_t aa;
@@ -374,12 +380,10 @@ static bool mpu6050_getFifo_adapter(SensorBatch * const outBatch)
         sample->mag.z = 0.0f;
 
         // Timestamp
-        sample->timestamp = (uint32_t)esp_timer_get_time();
-
-        outBatch->count++;
+        sample->timestamp = (uint32_t) esp_timer_get_time(); // WARN: 64 to 32 bit
     }
 
-    return (outBatch->count > 0U);
+    return packetCount;
 }
 
 SensorInterface espSensorInterface = {

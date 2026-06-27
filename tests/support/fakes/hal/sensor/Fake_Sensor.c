@@ -27,10 +27,9 @@ SensorStatus Fake_Sensor_init(SensorConfig config) {
     return status;
 }
 
-bool Fake_Sensor_GetFifo(SensorBatch * const out) {
-    SensorBatch * batch = (SensorBatch *) out;
-    batch->count = BATCH_SAMPLE_COUNT;
-    return 1;
+uint32_t Fake_Sensor_GetFifo(SensorData * const out, uint32_t maxSamplesToWrite) {
+    (void) out;
+    return maxSamplesToWrite;
 }
 
 SensorInterface Fake_Sensor_interface = {

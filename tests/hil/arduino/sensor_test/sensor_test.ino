@@ -603,10 +603,10 @@ void QS_onCommand(uint8_t cmdId,
             {
                 // TODO: create real implementation inside sensor module
 
-                SensorBatch batch = { 0 };
+                SensorData data[512];
 
-                if (espSensorInterface.Sensor_GetFifo(&batch)) {
-                    if (batch.samples[0].accel.x != 0.0) {
+                if (espSensorInterface.Sensor_GetFifo(data, 512)) {
+                    if (data[0].accel.x != 0.0) {
                         QS_BEGIN_ID(HIL_TEST_SIG, 1U)
                             QS_STR("DMP_YPR is NOT 0");
                         QS_END();
