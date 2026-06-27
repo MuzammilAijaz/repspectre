@@ -9,10 +9,16 @@ extern "C" {
 #include <stdint.h>
 #include "sensor.h"
 #include "sensorAO.h"
+#include "events.h"
 
 #include "qpc.h"
 
-/** @brief The amount of a data samples a single window contains */
+/**
+ * @brief The amount of a data samples a single window contains
+ * 
+ * ASSUMPTION: Right now "all" of the system assumes that for a
+ * window to exist it should have WINDOW_SAMPLE_COUNT samples.
+ */
 #define WINDOW_SAMPLE_COUNT        128U  // at 200hz, 0.64 seconds
 /**
  * @brief The amount of windows an arena can contain at max
@@ -85,6 +91,9 @@ typedef enum {
 } WindowStateId;
 
 bool WindowAO_isInState(WindowStateId state);
+
+WindowBuffer* WindowAO_getCurrentFillingWindow();
+WindowArena* WindowAO_getArena();
 
 #endif
 

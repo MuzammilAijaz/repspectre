@@ -161,4 +161,14 @@ bool WindowAO_isInState(WindowStateId state)
     return QHsm_isIn(&m_instance.super.super, handler);
 }
 
+WindowBuffer* WindowAO_getCurrentFillingWindow()
+{
+    return m_instance.currentFillingWindow;
+}
+
+WindowArena* WindowAO_getArena()
+{
+    return &m_instance.arena;
+}
+
 #endif
