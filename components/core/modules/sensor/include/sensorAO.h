@@ -43,6 +43,19 @@ void SensorAO_ctor(const SensorInterface * const sensor);
  */
 void SensorAO_dtor();
 
+#ifdef CPPUTEST
+
+typedef enum {
+    // TODO:
+    INITIALIZED_STATE,
+} SensorStateId;
+
+bool SensorAO_isInState(SensorStateId state);
+uint32_t SensorAO_getWriteMisses(void);
+SensorData* SensorAO_getCurrentWritePtr(void);
+
+#endif
+
 #ifdef __cplusplus
 }
 #endif

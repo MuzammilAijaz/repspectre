@@ -167,3 +167,37 @@ QState SensorAO_error(SensorAO * me, const QEvt* e) {
 
     return rtn;
 }
+
+//===== Testing ================================================================
+
+#ifdef CPPUTEST
+
+static QStateHandler stateFromId(SensorStateId state)
+{
+    switch (state) {
+        // TODO:
+    }
+}
+
+bool SensorAO_isInState(SensorStateId state)
+{
+    QStateHandler handler = stateFromId(state);
+
+    if (handler == (QStateHandler)0) {
+        return false;
+    }
+
+    return QHsm_isIn(&m_instance.super.super, handler);
+}
+
+uint32_t SensorAO_getWriteMisses(void)
+{
+    return m_instance.writeMisses;
+}
+
+SensorData* SensorAO_getCurrentWritePtr(void)
+{
+    return m_instance.currentWritePtr;
+}
+
+#endif
