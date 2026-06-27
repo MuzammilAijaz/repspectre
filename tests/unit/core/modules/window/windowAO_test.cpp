@@ -320,6 +320,22 @@ TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenShouldWriteOnlyToFr
 // TODO: @inferenceAO_test.cpp when actively inferencing on the window = processing
 // TODO: @inferenceAO_test.cpp when infernecing done change to FREE
 
+//===== Managing Sensor ========================================================
+
+TEST(WindowAOGroup, GivenAccumulating_WhenSampleWritten_ThenLeaseMemoryToSensorAO)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    // this should lead to lease
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
+
+    auto recordedEvent = dummy_sensorAO->getRecordedEvent();
+    CHECK_TRUE(recordedEvent != nullptr);
+    CHECK_EQUAL(WRITE_LOCATION_SIG, recordedEvent->sig);
+}
+
 //===== Managing Inference =====================================================
 
 TEST(WindowAOGroup, GivenAccumulatingAndFirstSampleWritten_WhenSampleWritten_ThenPublish_WINDOW_STATE_READY_WithReadyWindow)

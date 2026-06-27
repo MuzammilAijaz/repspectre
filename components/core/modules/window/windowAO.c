@@ -182,6 +182,12 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
             me->currentFillingWindow->samplesCount = 0;
             me->currentFillingWindow->state = WINDOW_STATE_FILLING;
 
+            // lease memory to SensorAO so it can start filling window again
+            WriteLocationEvent * const event = Q_NEW(WriteLocationEvent, WRITE_LOCATION_SIG);
+            event->writeLocation = &me->currentFillingWindow->samples[0];
+            event->maxSamples = WINDOW_SAMPLE_COUNT;
+            QACTIVE_POST(g_sensorAO, &event->super, me);
+
             rtn = Q_HANDLED();
             break;
         }
