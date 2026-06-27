@@ -12,9 +12,17 @@ extern "C" {
 
 #include "qpc.h"
 
-// Sample < Batch < Window < Arena
+/** @brief The amount of a data samples a single window contains */
 #define WINDOW_SAMPLE_COUNT        128U  // at 200hz, 0.64 seconds
-#define WINDOW_BATCH_COUNT         (WINDOW_SAMPLE_COUNT / BATCH_SAMPLE_COUNT)
+/**
+ * @brief The amount of windows an arena can contain at max
+ *
+ * Examples of different windows: 
+ *  Window 1 - Being filled by sensor
+ *  Window 2 - Being ran inference on
+ *  Window 3 - Window deemed READY for inference
+ *  Window 4 - Extra window to reduce chances of backpressure
+ */
 #define ARENA_WINDOW_COUNT         4U    // 2.56 seconds of data
 
 /**
@@ -24,27 +32,47 @@ extern "C" {
  * by signaling that a window is being used by the inference engine.
  */
 typedef enum {
-    /** Inference has already been performed on this block, needs to written to. */
+    /** Inference has already been performed on this block, new data needs to written. */
     WINDOW_STATE_FREE = 0,
-    /** Window is being filled by WindowAO */
+    /** Window is being filled by SensorAO */
     WINDOW_STATE_FILLING,
     /** Window is ready to be ran inference on */
     WINDOW_STATE_READY,
-    /** Inference begin performed */
+    /** Inference being performed */
     WINDOW_STATE_PROCESSING
 } WindowState;
 
 typedef struct {
-    uint16_t batchesCount;
-    SensorBatch batches[WINDOW_BATCH_COUNT];
+    uint16_t samplesCount;
+    SensorData samples[WINDOW_SAMPLE_COUNT];
     WindowState state;
 } WindowBuffer;
 
+/** 
+ * @brief `WindowAO` leases memory to `SensorAO` to write sensor data to
+ * on a FIFO overflow interrupt. 
+ */
+typedef struct {
+    QEvt super;
+    SensorData *writeLocation;
+    uint16_t maxSamples;
+} WriteLocationEvent;
+
+/** 
+ * @brief `SensorAO` has successfully written data and lets the `WindowAO` 
+ * know, so that it can send another `WriteLocationEvent`.
+ * REFACTOR: move to  sensorAO.h
+ */
+typedef struct {
+    QEvt super;
+    uint16_t samplesWritten;
+} SamplesWrittenEvent;
+
+/** `WindowAO` sends the window location to inferenceAOs  */
 typedef struct {
     QEvt super;
     WindowBuffer const * window; // MEMORY-WARN: manage concurrency read / write
 } WindowReadyEvent;
-
 
 typedef struct {
     WindowBuffer windows[ARENA_WINDOW_COUNT];
