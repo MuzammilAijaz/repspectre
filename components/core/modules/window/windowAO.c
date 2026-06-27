@@ -18,6 +18,7 @@ typedef struct {
     WindowArena arena;
     uint16_t window_index;
     WindowBuffer *currentFillingWindow;
+    bool firstWrite;
 } WindowAO;
 
 
@@ -36,6 +37,7 @@ void WindowAO_ctor(void) {
     QActive_ctor(&m_instance.super, Q_STATE_CAST(WindowAO_initial));
     m_instance.window_index = 0;
     m_instance.currentFillingWindow = &m_instance.arena.windows[0];
+    m_instance.firstWrite = true;
 
     g_windowAO = &m_instance.super;
 }
@@ -109,6 +111,16 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
             // ASSUMPTION: all samples to complete a window were written
             me->currentFillingWindow->samplesCount += WINDOW_SAMPLE_COUNT;
             me->currentFillingWindow->state = WINDOW_STATE_READY;
+
+            // start inference from here only for first
+            if (me->firstWrite) {
+                WindowReadyEvent * const evt = Q_NEW(WindowReadyEvent, WINDOW_READY_SIG);
+                me->currentFillingWindow->state = WINDOW_STATE_PROCESSING;
+                evt->window = me->currentFillingWindow;
+                QF_PUBLISH(&evt->super, &me->super);
+
+                me->firstWrite = false;
+            }
 
             // Advance the window
             // me->currentFillingWindow = &me->arena.windows[++me->window_index];

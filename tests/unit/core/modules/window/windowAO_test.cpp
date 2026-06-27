@@ -195,6 +195,7 @@ TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenAdvanceCurrentWindo
     CHECK_TRUE(curr->samplesCount == 0);
     auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
     qf_ctrl::PublishAndProcess(e, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
 
     // At this point current window has been progressed so we cants use it anymore
     WindowArena* arena = WindowAO_getArena();
@@ -205,11 +206,15 @@ TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenSetWindowAsReady)
 {
     startAOUnderTestAndMoveToAccumulatingState();
 
+    // we do a double write, because first write always sets WINDOW_STATE_PROCESSING
     auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
     qf_ctrl::PublishAndProcess(e, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
+    auto* e2 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
 
     WindowArena* arena = WindowAO_getArena();
-    CHECK_TRUE(arena->windows[0].state == WINDOW_STATE_READY);
+    CHECK_TRUE(arena->windows[1].state == WINDOW_STATE_READY);
 }
 
 TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenAdvanceCurrentFillingWindow)
@@ -218,6 +223,7 @@ TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenAdvanceCurrentFilli
 
     auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
     qf_ctrl::PublishAndProcess(e, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
 
     // This should be the new window
     WindowBuffer* curr = WindowAO_getCurrentFillingWindow();
@@ -245,6 +251,7 @@ TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenShouldWriteOnlyToFr
     // "write" once
     auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
     qf_ctrl::PublishAndProcess(e, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
 
     // This should write to the last window!
     auto* e2 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
@@ -269,6 +276,7 @@ TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenShouldWriteOnlyToFr
     // "write" once
     auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
     qf_ctrl::PublishAndProcess(e, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
 
     auto* e2 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
     qf_ctrl::PublishAndProcess(e2, mRecorder);
@@ -288,20 +296,17 @@ TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenShouldWriteOnlyToFr
     // was only done once.
     auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
     qf_ctrl::PublishAndProcess(e, mRecorder);
-
-    // we start inference on the first window
-    // ASSUMPTION: ARENA_WINDOW_COUNT = 4
-    WindowArena* arena = WindowAO_getArena();
-    arena->windows[0].state = WINDOW_STATE_PROCESSING;
-    auto* e2 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
 
     // by that time, we are at the end of arena
+    auto* e2 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
     qf_ctrl::PublishAndProcess(e2, mRecorder);
     auto* e3 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
     qf_ctrl::PublishAndProcess(e3, mRecorder);
     auto* e4 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
     qf_ctrl::PublishAndProcess(e4, mRecorder);
 
+    WindowArena* arena = WindowAO_getArena();
     CHECK_EQUAL(WINDOW_STATE_PROCESSING, arena->windows[0].state);
     CHECK_EQUAL(WINDOW_STATE_READY, arena->windows[1].state);
     CHECK_EQUAL(WINDOW_STATE_READY, arena->windows[2].state);
@@ -324,16 +329,22 @@ TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenShouldWriteOnlyToFr
 // TODO: TEST(WindowAOGroup, GivenWindowReady_WhenInferenceCompletes_ThenMarkWindowFree)
 // TODO: TEST(WindowAOGroup, GivenAccumulating_WhenWindowBecomesFull_ThenMarkWindowReady)
 
-//===== Communication ==========================================================
+//===== Managing Inference =====================================================
 
-// REFACTOR: 
-TEST(WindowAOGroup, GivenAccumulating_WhenExactWindowSizeIsReached_ThenPublishWindowReady)
+TEST(WindowAOGroup, GivenAccumulatingAndFirstSampleWritten_WhenSampleWritten_ThenPublish_WINDOW_STATE_READY_WithReadyWindow)
 {
     startAOUnderTestAndMoveToAccumulatingState();
 
-    // fill a whole window
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
 
-    // TODO: checkRecordedEventSignal(WINDOW_READY_SIG);
+    // verify processing
+    WindowArena* arena = WindowAO_getArena();
+    WindowBuffer* window = &arena->windows[0]; // should point to the first window
+    auto event = checkRecordedEventSignal(WINDOW_READY_SIG);
+    auto responseEvt = reinterpret_cast<const WindowReadyEvent*>(event.get());
+    CHECK_EQUAL(window,  responseEvt->window);
+    CHECK_EQUAL(WINDOW_STATE_PROCESSING,  responseEvt->window->state);
 }
 
 //===== Overflown arena ========================================================
