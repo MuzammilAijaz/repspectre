@@ -1,7 +1,9 @@
 #include "windowAO.h"
+#include "sensorAO.h" // for g_sensorAO
 
 #include <string.h>
 
+#include "events.h"
 #include "qp.h"
 #include "qpc.h"
 #include "qsafe.h"
@@ -13,8 +15,8 @@ Q_DEFINE_THIS_MODULE("WindowAO")
 typedef struct {
     QActive super;
 
-    WindowArena windowArena;
-    uint16_t currentWindow;
+    WindowArena arena;
+    WindowBuffer *currentFillingWindow;
 } WindowAO;
 
 static QState WindowAO_initial(WindowAO *me, void const * par);
@@ -26,12 +28,9 @@ static WindowAO m_instance; // private member variable
 QActive * g_windowAO = NULL; // NOTE: only access this AFTER WindowAO_ctor() called
 
 void WindowAO_ctor(void) {
+    memset(&m_instance, 0, sizeof(m_instance));
     QActive_ctor(&m_instance.super, Q_STATE_CAST(WindowAO_initial));
-    m_instance.currentWindow = 0;
-    memset(&m_instance.windowArena, 0, sizeof(m_instance.windowArena));
-    // init current window
-    m_instance.windowArena.windows[m_instance.currentWindow].batchesCount = 0;
-    m_instance.windowArena.windows[m_instance.currentWindow].state = WINDOW_STATE_FILLING;
+    m_instance.currentFillingWindow = &m_instance.arena.windows[0];
 
     g_windowAO = &m_instance.super;
 }
@@ -81,6 +80,14 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
     switch (e->sig) {
 
         case Q_ENTRY_SIG: {
+            // lease memory to SensorAO so it can start filling window
+            WriteLocationEvent * const evt =
+                Q_NEW(WriteLocationEvent, WRITE_LOCATION_SIG);
+            evt->writeLocation = &me->currentFillingWindow->samples[0];
+            evt->maxSamples = WINDOW_SAMPLE_COUNT;
+
+            QACTIVE_POST(g_sensorAO, &evt->super, me);
+
             rtn = Q_HANDLED();
             break;
         }

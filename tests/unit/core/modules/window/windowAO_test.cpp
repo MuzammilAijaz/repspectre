@@ -37,6 +37,8 @@ TEST_GROUP(WindowAOGroup) {
 
     QActive* mUnderTest = nullptr; // Active Object under test
 
+    std::unique_ptr<cms::test::DefaultDummyActiveObject> dummy_sensorAO = nullptr;
+
     // Storage for the event queue of the AO, holding 10 events max
     std::array<const QEvt*, 10> underTestEventQueueStorage;
 
@@ -64,21 +66,26 @@ TEST_GROUP(WindowAOGroup) {
         );
 
         setRecorder(mRecorder);
+        dummy_sensorAO = setupDummyObject(&g_sensorAO, qf_ctrl::DUMMY_AO_A_PRIORITY);
 
         WindowAO_ctor();
         mUnderTest = g_windowAO; // this will be out AO under test
         CHECK_TRUE(mUnderTest != nullptr);
+        CHECK_TRUE(dummy_sensorAO != nullptr);
 
         // Clear event queue buffer with nullptr
         underTestEventQueueStorage.fill(nullptr);
     }
 
     void teardown() final {
+        flushDummyAOs();
+
         mock().checkExpectations();
 
         WindowAO_dtor();
 
         mUnderTest = nullptr; // this will be out AO under test
+        dummy_sensorAO = nullptr;
 
         // clears cpputest mock subsystem
         mock().clear();
@@ -87,6 +94,22 @@ TEST_GROUP(WindowAOGroup) {
         cms::test::qf_ctrl::Teardown();
 
         delete mRecorder;
+    }
+
+    /**
+     * @brief Drains all recorded events from Dummy Active Objects to prevent memory leaks.
+     *
+     * Since the SequencerAO posts multiple events from the global pool (Q_NEW),
+     * any event not explicitly retrieved via getRecordedEvent() remains allocated
+     * in the dummy's internal recorder. This function flushes those queues to
+     * ensure all pool memory is returned to the framework before test teardown.
+     */
+    void flushDummyAOs() {
+        if (dummy_sensorAO) {
+            while (dummy_sensorAO->isAnyEventRecorded()) {
+                (void)dummy_sensorAO->getRecordedEvent(); // Pull and destroy
+            }
+        }
     }
 
     void startAOUnderTest() {
@@ -115,6 +138,9 @@ TEST_GROUP(WindowAOGroup) {
         qf_ctrl::PublishAndProcess(e, mRecorder);
 
         CHECK_TRUE(WindowAO_isInState(STATE_ACCUMULATING));
+        auto recordedEvent = dummy_sensorAO->getRecordedEvent();
+        CHECK_TRUE(recordedEvent != nullptr);
+        CHECK_EQUAL(WRITE_LOCATION_SIG, recordedEvent->sig);
     }
 
 };
@@ -134,7 +160,7 @@ TEST(WindowAOGroup, GivenConstructed_WhenStarted_ThenEntersIdleState)
 // | Accumulating
 //==============================================================================
 
-TEST(WindowAOGroup, GivenIdle_WhenWindowingRequest_ThenMoveToAccumulatingState)
+TEST(WindowAOGroup, GivenIdle_WhenWindowingRequest_ThenMoveToAccumulatingStateAndLeaseInitialWindow)
 {
     startAOUnderTest();
 
@@ -142,9 +168,10 @@ TEST(WindowAOGroup, GivenIdle_WhenWindowingRequest_ThenMoveToAccumulatingState)
     qf_ctrl::PublishAndProcess(e, mRecorder);
 
     CHECK_TRUE(WindowAO_isInState(STATE_ACCUMULATING));
+    auto recordedEvent = dummy_sensorAO->getRecordedEvent();
+    CHECK_TRUE(recordedEvent != nullptr);
+    CHECK_EQUAL(WRITE_LOCATION_SIG, recordedEvent->sig);
 }
-
-// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenStarted_ThenLeaseInitialWriteLocationToSensorAO)
 
 // Sample < Batch < Window < Arena
 
