@@ -16,8 +16,12 @@ typedef struct {
     QActive super;
 
     WindowArena arena;
+    uint16_t window_index;
     WindowBuffer *currentFillingWindow;
 } WindowAO;
+
+
+uint16_t findFreeWindow(WindowArena const * const arena, const uint16_t window_index);
 
 static QState WindowAO_initial(WindowAO *me, void const * par);
 static QState WindowAO_idle(WindowAO * me, const QEvt* e);
@@ -30,6 +34,7 @@ QActive * g_windowAO = NULL; // NOTE: only access this AFTER WindowAO_ctor() cal
 void WindowAO_ctor(void) {
     memset(&m_instance, 0, sizeof(m_instance));
     QActive_ctor(&m_instance.super, Q_STATE_CAST(WindowAO_initial));
+    m_instance.window_index = 0;
     m_instance.currentFillingWindow = &m_instance.arena.windows[0];
 
     g_windowAO = &m_instance.super;
@@ -98,30 +103,30 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
         }
 
         case SAMPLES_WRITTEN_SIG: {
-            MpuBatchEvent const * batchEvt = (MpuBatchEvent const *)e;
-            SensorBatch const * inputBatch = &batchEvt->batch;
-            uint16_t currentWindow = me->currentWindow;
+            // REFACTOR: to a normal event
+            SamplesWrittenEvent const * evt = (SamplesWrittenEvent const *)e;
 
-            uint16_t current = me->windowArena.windows[currentWindow].batchesCount;
+            // ASSUMPTION: all samples to complete a window were written
+            me->currentFillingWindow->samplesCount += WINDOW_SAMPLE_COUNT;
+            me->currentFillingWindow->state = WINDOW_STATE_READY;
 
-            // append the whole batch
-            me->windowArena.windows[currentWindow].batches[current] = *inputBatch;
-            me->windowArena.windows[currentWindow].batchesCount = current + 1U;
+            // Advance the window
+            // me->currentFillingWindow = &me->arena.windows[++me->window_index];
+            uint16_t index = findFreeWindow(&me->arena, me->window_index);
 
-            // If window is full, publish it and move to the next window
-            if (me->windowArena.windows[currentWindow].batchesCount >= WINDOW_BATCH_COUNT) {
-
-                // post signal
-                WindowReadyEvent * const windowReadyEvent = Q_NEW(WindowReadyEvent, WINDOW_READY_SIG);
-                windowReadyEvent->window = &me->windowArena.windows[currentWindow];
-                // TODO: turn it into post
-                QF_PUBLISH(&windowReadyEvent->super, &me->super);
-
-                // iterate window
-                currentWindow = (currentWindow + 1U) % ARENA_WINDOW_COUNT;
-                me->currentWindow = currentWindow;
-                me->windowArena.windows[currentWindow].batchesCount = 0U;
+            if (index == 0xFFFF) {
+                // TODO: FAILURE TO GET FREE WINDOW // BACKPRESSURE STATE???
+                // rtn = Q_TRAN(Backpressured);
+                rtn = Q_HANDLED();
+                break;
             }
+            else {
+                me->window_index = index;
+            }
+
+            me->currentFillingWindow = &me->arena.windows[me->window_index];
+            me->currentFillingWindow->samplesCount = 0;
+            me->currentFillingWindow->state = WINDOW_STATE_FILLING;
 
             rtn = Q_HANDLED();
             break;
@@ -134,6 +139,28 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
     }
 
     return rtn;
+}
+
+//===== Helpers ================================================================
+
+uint16_t findFreeWindow(WindowArena const * const arena, const uint16_t window_index) 
+{
+    // start from the current index (as its most likely to be directly in-front)
+    // ASSUMPTION: called before moving to next window
+    uint16_t index = (window_index + 1) % ARENA_WINDOW_COUNT;
+
+    // ASSUMPTION: arena size
+    for (uint16_t count = 0; count < ARENA_WINDOW_COUNT - 1; count++) {
+        Q_ASSERT(index != window_index);
+
+        if (arena->windows[index].state == WINDOW_STATE_FREE) {
+            return index; // PASS
+        }
+
+        index = (index + 1) % ARENA_WINDOW_COUNT;
+    }
+
+    return 0xFFFF; // FAILURE
 }
 
 //===== Testing ================================================================

@@ -187,9 +187,132 @@ TEST(WindowAOGroup, GivenIdle_WhenWindowingRequest_ThenSetAllWindowsAsFree)
 
 //===== Arena indexing =========================================================
 
-// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenAdvanceCurrentWindowWriteIndex)
-// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenWindowBecomesFull_ThenMarkWindowReady)
-// TODO: TEST(WindowAOGroup, GivenReadyWindow_WhenAnotherFreeWindowExists_ThenAdvanceToNextWindow)
+TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenAdvanceCurrentWindowSampleCountByWIDNOW_SAMPLE_COUNT)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    WindowBuffer* curr = WindowAO_getCurrentFillingWindow();
+    CHECK_TRUE(curr->samplesCount == 0);
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+
+    // At this point current window has been progressed so we cants use it anymore
+    WindowArena* arena = WindowAO_getArena();
+    CHECK_TRUE(arena->windows[0].samplesCount == WINDOW_SAMPLE_COUNT);
+}
+
+TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenSetWindowAsReady)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+
+    WindowArena* arena = WindowAO_getArena();
+    CHECK_TRUE(arena->windows[0].state == WINDOW_STATE_READY);
+}
+
+TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenAdvanceCurrentFillingWindow)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+
+    // This should be the new window
+    WindowBuffer* curr = WindowAO_getCurrentFillingWindow();
+    CHECK_TRUE(curr->state == WINDOW_STATE_FILLING);
+    CHECK_TRUE(curr->samplesCount == 0);
+}
+
+// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenInferenceDone_ThenSetWindowToProcessing)
+
+// TODO:
+// TODO: TEST(WindowAOGroup, GivenAccumulatingAndArenaWindowIndexMax_WhenSamplesWritten_ThenWrapAroundToFirstFreeWindow)
+
+//===== Finding Free Windows ===================================================
+
+TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenShouldWriteOnlyToFreeWindows_A)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    // only make the last window free
+    // ASSUMPTION: ARENA_WINDOW_COUNT = 4
+    WindowArena* arena = WindowAO_getArena();
+    arena->windows[1].state = WINDOW_STATE_PROCESSING;
+    arena->windows[2].state = WINDOW_STATE_PROCESSING;
+
+    // "write" once
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+
+    // This should write to the last window!
+    auto* e2 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+
+    // Ensure other states remained untouched
+    CHECK_EQUAL(WINDOW_STATE_PROCESSING, arena->windows[1].state);
+    CHECK_EQUAL(WINDOW_STATE_PROCESSING, arena->windows[2].state);
+    // main assert
+    CHECK_EQUAL(WINDOW_STATE_READY, arena->windows[3].state);
+}
+
+TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenShouldWriteOnlyToFreeWindows_B)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    // ASSUMPTION: ARENA_WINDOW_COUNT = 4
+    WindowArena* arena = WindowAO_getArena();
+    arena->windows[1].state = WINDOW_STATE_PROCESSING;
+    arena->windows[3].state = WINDOW_STATE_PROCESSING;
+
+    // "write" once
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+
+    auto* e2 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+
+    CHECK_EQUAL(WINDOW_STATE_PROCESSING, arena->windows[1].state);
+    CHECK_EQUAL(WINDOW_STATE_PROCESSING, arena->windows[3].state);
+    // main assert
+    CHECK_EQUAL(WINDOW_STATE_READY, arena->windows[2].state);
+}
+
+// TODO:
+TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenShouldWriteOnlyToFreeWindows_C)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    // A realistic scenario : we keep filling until we looped and inference
+    // was only done once.
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+
+    // we start inference on the first window
+    // ASSUMPTION: ARENA_WINDOW_COUNT = 4
+    WindowArena* arena = WindowAO_getArena();
+    arena->windows[0].state = WINDOW_STATE_PROCESSING;
+    auto* e2 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+
+    // by that time, we are at the end of arena
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+    auto* e3 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e3, mRecorder);
+    auto* e4 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e4, mRecorder);
+
+    CHECK_EQUAL(WINDOW_STATE_PROCESSING, arena->windows[0].state);
+    CHECK_EQUAL(WINDOW_STATE_READY, arena->windows[1].state);
+    CHECK_EQUAL(WINDOW_STATE_READY, arena->windows[2].state);
+    CHECK_EQUAL(WINDOW_STATE_READY, arena->windows[3].state);
+
+    // TODO: what do??
+    // auto* e4 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    // qf_ctrl::PublishAndProcess(e4, mRecorder);
+}
+
+// TODO: TEST(WindowAOGroup, GivenAccumulatingAndNoFreeWindow_WhenSamplesWritten_Then???)
 
 //===== Managing Window States =================================================
 
@@ -199,6 +322,7 @@ TEST(WindowAOGroup, GivenIdle_WhenWindowingRequest_ThenSetAllWindowsAsFree)
 // TODO: TEST(WindowAOGroup, GivenCurrentWindowFull_WhenFreeWindowExists_ThenLeaseIt)
 
 // TODO: TEST(WindowAOGroup, GivenWindowReady_WhenInferenceCompletes_ThenMarkWindowFree)
+// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenWindowBecomesFull_ThenMarkWindowReady)
 
 //===== Communication ==========================================================
 
