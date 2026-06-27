@@ -17,12 +17,15 @@ typedef struct {
 
     WindowArena arena;
     uint16_t window_index;
+    uint16_t processing_index;
     WindowBuffer *currentFillingWindow;
+    WindowBuffer *currentProcessingWindow;
     bool firstWrite;
 } WindowAO;
 
 
 uint16_t findFreeWindow(WindowArena const * const arena, const uint16_t window_index);
+uint16_t findReadyWindow(WindowArena const * const arena, const uint16_t window_index);
 
 static QState WindowAO_initial(WindowAO *me, void const * par);
 static QState WindowAO_idle(WindowAO * me, const QEvt* e);
@@ -36,7 +39,9 @@ void WindowAO_ctor(void) {
     memset(&m_instance, 0, sizeof(m_instance));
     QActive_ctor(&m_instance.super, Q_STATE_CAST(WindowAO_initial));
     m_instance.window_index = 0;
+    m_instance.processing_index = 0xFFFF;
     m_instance.currentFillingWindow = &m_instance.arena.windows[0];
+    m_instance.currentProcessingWindow = NULL;
     m_instance.firstWrite = true;
 
     g_windowAO = &m_instance.super;
@@ -51,6 +56,7 @@ QState WindowAO_initial(WindowAO * const me, void const * const par) {
 
     QActive_subscribe(&me->super, START_WINDOWING_SIG);
     QActive_subscribe(&me->super, SAMPLES_WRITTEN_SIG);
+    QActive_subscribe(&me->super, INFERENCE_DONE_SIG);
 
     return Q_TRAN(&WindowAO_idle);
 }
@@ -104,6 +110,40 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
             break;
         }
 
+        case INFERENCE_DONE_SIG: {
+            Q_ASSERT(me->processing_index != 0xFFFF);
+            Q_ASSERT(me->currentProcessingWindow != NULL);
+
+            // provide the next ready window
+            uint16_t readyWindowIndex = findReadyWindow(&me->arena, me->processing_index);
+
+            if (readyWindowIndex == 0xFFFF) {
+                // TODO: FAILURE TO GET FREE WINDOW // BACKPRESSURE STATE???
+                // rtn = Q_TRAN(Backpressured);
+                rtn = Q_HANDLED();
+                break;
+            }
+            else {
+                me->processing_index = readyWindowIndex;
+            }
+
+            // reset the inference window
+            // ASSUMPTION: only one inference window can exist.
+            me->currentProcessingWindow->state = WINDOW_STATE_FREE;
+            me->currentProcessingWindow->samplesCount = 0;
+
+            Q_ASSERT(me->currentProcessingWindow != &me->arena.windows[readyWindowIndex]);
+            
+            WindowReadyEvent * const evt = Q_NEW(WindowReadyEvent, WINDOW_READY_SIG);
+            me->currentProcessingWindow = &me->arena.windows[readyWindowIndex];
+            me->currentProcessingWindow->state = WINDOW_STATE_PROCESSING;
+            evt->window = me->currentProcessingWindow;
+            QF_PUBLISH(&evt->super, &me->super);
+
+            rtn = Q_HANDLED();
+            break;
+        }
+
         case SAMPLES_WRITTEN_SIG: {
             // REFACTOR: to a normal event
             SamplesWrittenEvent const * evt = (SamplesWrittenEvent const *)e;
@@ -115,8 +155,10 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
             // start inference from here only for first
             if (me->firstWrite) {
                 WindowReadyEvent * const evt = Q_NEW(WindowReadyEvent, WINDOW_READY_SIG);
+                me->processing_index = me->window_index;
                 me->currentFillingWindow->state = WINDOW_STATE_PROCESSING;
-                evt->window = me->currentFillingWindow;
+                me->currentProcessingWindow = me->currentFillingWindow;
+                evt->window = me->currentProcessingWindow;
                 QF_PUBLISH(&evt->super, &me->super);
 
                 me->firstWrite = false;
@@ -166,6 +208,26 @@ uint16_t findFreeWindow(WindowArena const * const arena, const uint16_t window_i
         Q_ASSERT(index != window_index);
 
         if (arena->windows[index].state == WINDOW_STATE_FREE) {
+            return index; // PASS
+        }
+
+        index = (index + 1) % ARENA_WINDOW_COUNT;
+    }
+
+    return 0xFFFF; // FAILURE
+}
+
+uint16_t findReadyWindow(WindowArena const * const arena, const uint16_t window_index)
+{
+    // start from the current index (as its most likely to be directly in-front)
+    // ASSUMPTION: called before moving to next window
+    uint16_t index = (window_index + 1) % ARENA_WINDOW_COUNT;
+
+    // ASSUMPTION: arena size
+    for (uint16_t count = 0; count < ARENA_WINDOW_COUNT - 1; count++) {
+        Q_ASSERT(index != window_index);
+
+        if (arena->windows[index].state == WINDOW_STATE_READY) {
             return index; // PASS
         }
 

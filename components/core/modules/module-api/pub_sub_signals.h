@@ -50,6 +50,9 @@ typedef enum PubSubSignal {
     WRITE_LOCATION_SIG,
     WINDOW_READY_SIG,
 
+    // ---- Inference ----------------------------------------------
+    INFERENCE_DONE_SIG,
+
     // ---- Error --------------------------------------------------
 
     /** WHEN: No ACK from device, SDA stuck low */

@@ -231,11 +231,6 @@ TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenAdvanceCurrentFilli
     CHECK_TRUE(curr->samplesCount == 0);
 }
 
-// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenInferenceDone_ThenSetWindowToProcessing)
-
-// TODO:
-// TODO: TEST(WindowAOGroup, GivenAccumulatingAndArenaWindowIndexMax_WhenSamplesWritten_ThenWrapAroundToFirstFreeWindow)
-
 //===== Finding Free Windows ===================================================
 
 TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenShouldWriteOnlyToFreeWindows_A)
@@ -324,10 +319,6 @@ TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenShouldWriteOnlyToFr
 // TODO: initial window state should be filling
 // TODO: @inferenceAO_test.cpp when actively inferencing on the window = processing
 // TODO: @inferenceAO_test.cpp when infernecing done change to FREE
-// TODO: TEST(WindowAOGroup, GivenCurrentWindowFull_WhenFreeWindowExists_ThenLeaseIt)
-
-// TODO: TEST(WindowAOGroup, GivenWindowReady_WhenInferenceCompletes_ThenMarkWindowFree)
-// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenWindowBecomesFull_ThenMarkWindowReady)
 
 //===== Managing Inference =====================================================
 
@@ -345,6 +336,56 @@ TEST(WindowAOGroup, GivenAccumulatingAndFirstSampleWritten_WhenSampleWritten_The
     auto responseEvt = reinterpret_cast<const WindowReadyEvent*>(event.get());
     CHECK_EQUAL(window,  responseEvt->window);
     CHECK_EQUAL(WINDOW_STATE_PROCESSING,  responseEvt->window->state);
+}
+
+TEST(WindowAOGroup, GivenAccumulating_WhenInferenceDone_ThenPublish_WINDOW_READY_SIG_WithAValidReadyWindow)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    // This should turn the first window into processing state
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
+
+    // second one to have another ready window
+    auto* e3 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e3, mRecorder);
+
+    // prompt for a new ready window; should return 2nd window now
+    auto* e2 = Q_NEW(QEvt, INFERENCE_DONE_SIG);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+
+    // this should be the window posted by the WindowAO
+    WindowArena* arena = WindowAO_getArena();
+    WindowBuffer* window = &arena->windows[1];
+
+    auto event = checkRecordedEventSignal(WINDOW_READY_SIG);
+    auto responseEvt = reinterpret_cast<const WindowReadyEvent*>(event.get());
+    CHECK_EQUAL(window,  responseEvt->window);
+    CHECK_EQUAL(WINDOW_STATE_PROCESSING,  responseEvt->window->state);
+}
+
+TEST(WindowAOGroup, GivenAccumulating_WhenInferenceDone_ThenChangeTheWindowToFree)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
+
+    // second one to have another ready window
+    auto* e3 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e3, mRecorder);
+
+    auto* e2 = Q_NEW(QEvt, INFERENCE_DONE_SIG);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
+
+    WindowArena* arena = WindowAO_getArena();
+    WindowBuffer* window = &arena->windows[0];
+
+    // first window should be free after the inference done sig
+    CHECK_EQUAL(WINDOW_STATE_FREE, window->state);
 }
 
 //===== Overflown arena ========================================================
