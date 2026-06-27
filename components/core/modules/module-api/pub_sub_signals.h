@@ -47,6 +47,7 @@ typedef enum PubSubSignal {
     // ---- Window -------------------------------------------------
 
     START_WINDOWING_SIG,
+    WRITE_LOCATION_SIG,
     WINDOW_READY_SIG,
 
     // ---- Error --------------------------------------------------

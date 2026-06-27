@@ -10,6 +10,8 @@ set_target_properties(sensorAO_test PROPERTIES
 
 target_compile_features(sensorAO_test PRIVATE cxx_std_17)
 
+target_compile_definitions(sensorAO_test PRIVATE CPPUTEST)
+
 target_include_directories(sensorAO_test
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

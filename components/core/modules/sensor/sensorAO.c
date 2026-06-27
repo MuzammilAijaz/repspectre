@@ -7,15 +7,24 @@
 #include "qsafe.h"
 
 #include "pub_sub_signals.h"
+#include "events.h"
 #include "sensor.h"
+#include "windowAO.h"
 
 Q_DEFINE_THIS_MODULE("SensorAO")
 
 typedef struct {
     QActive super;
     SensorConfig active_config;
-    SensorInterface* sensor; // NOTE: pointer; for clear ownership
+    SensorInterface const* sensor; // NOTE: pointer; for clear ownership
     SensorStatus status;
+
+    // memory arena
+    SensorData *currentWritePtr;
+    uint16_t availableSpace;
+    
+    // debug
+    uint32_t writeMisses;
 } SensorAO;
 
 static QState SensorAO_initial(SensorAO *me, void const * par);
@@ -36,6 +45,9 @@ void SensorAO_ctor(const SensorInterface * const sensor) {
 
     QActive_ctor(&m_instance.super, Q_STATE_CAST(SensorAO_initial));
     m_instance.sensor = sensor;
+    m_instance.currentWritePtr = NULL;
+    m_instance.availableSpace = 0;
+    m_instance.writeMisses = 0;
 
     g_sensorAO = &m_instance.super;
 }
@@ -49,6 +61,7 @@ QState SensorAO_initial(SensorAO * const me, void const * const par) {
 
     QActive_subscribe(&me->super, INITIALIZE_MPU_SIG);
     QActive_subscribe(&me->super, MPU_FIFO_FULL);
+    QActive_subscribe(&me->super, WRITE_LOCATION_SIG);
 
     return Q_TRAN(&SensorAO_uninitialized);
 }
@@ -118,13 +131,48 @@ QState SensorAO_initialized(SensorAO * me, const QEvt* e) {
             break;
         }
 
+        case WRITE_LOCATION_SIG: {
+            const WriteLocationEvent * const evt = (const WriteLocationEvent *) e;
+
+            Q_ASSERT(evt->writeLocation != NULL);
+            Q_ASSERT(evt->maxSamples > 0);
+
+            me->currentWritePtr = evt->writeLocation;
+            me->availableSpace = evt->maxSamples;
+
+            rtn = Q_HANDLED();
+            break;
+        }
+
         case MPU_FIFO_FULL: { // from ISR
 
-            MpuBatchEvent * const mpuDataReadyEvent =
-                Q_NEW(MpuBatchEvent, MPU_DATA_READY_SIG);
+            // Pointer MUST be valid 
+            // WARN: reaching this case SHOULD NOT be happening often or ever
+            if (me->currentWritePtr == NULL || me->availableSpace == 0) {
+                me->writeMisses++;
 
-            if (me->sensor->Sensor_GetFifo(&mpuDataReadyEvent->batch)) {
-                QF_PUBLISH(&mpuDataReadyEvent->super, &me->super);
+                rtn = Q_HANDLED();
+                break;
+            }
+
+            uint32_t written = 
+                me->sensor->Sensor_GetFifo(me->currentWritePtr, me->availableSpace);
+            // driver SHOULD NOT write more than required
+            Q_ASSERT(written <= me->availableSpace);
+
+            me->availableSpace -= written;
+
+            // publish if all the required samples (`maxSamples`) are written
+            if (me->availableSpace == 0) {
+                SamplesWrittenEvent *evt = Q_NEW(SamplesWrittenEvent, SAMPLES_WRITTEN_SIG);
+                QACTIVE_POST(g_windowAO, &evt->super, me);
+
+                // Invalidate pointer to not allow further writes.
+                me->currentWritePtr = NULL;
+                me->availableSpace = 0;
+            }
+            else { // writes fell short, requires another run
+                me->currentWritePtr += written;
             }
 
             rtn = Q_HANDLED();

@@ -29,6 +29,7 @@
 
 #include <array>
 
+#include "events.h"
 #include "sensor.h"
 #include "windowAO.h"
 #include "sensorAO.h"
@@ -154,6 +155,17 @@ TEST_GROUP(SensorAOGroup) {
         mRecorder->getRecordedEvent(); // consume the MPU_INITIALIZED_SIG event
     }
 
+    void publishWriteLocationToSensorAO(uint32_t samples) {
+        using namespace cms::test;
+
+        // lease memory to sensorAO
+        SensorData temp;
+        auto* e = Q_NEW(WriteLocationEvent, WRITE_LOCATION_SIG);
+        e->writeLocation = &temp;
+        e->maxSamples = samples;
+        qf_ctrl::PublishAndProcess(&e->super, mRecorder);
+    }
+
 };
 
 static const SensorConfig validConfig = {
@@ -205,17 +217,66 @@ TEST(SensorAOGroup, GivenValidConfig_WhenInitializeMpuCalled_ThenEmitsInitialize
 // =============================================================================
 
 // Should handle The FIFO buffer filling event and send data ready signal for further processing
-TEST(SensorAOGroup, GivenInitialized_WhenDataReady_ThenPublishesSensorDataEvent) {
+TEST(SensorAOGroup, GivenInitialized_WhenDataReady_ThenPublishesSensorDataEvent)
+{
     using namespace cms::test;
     startAOAndMoveToInitializedState(validConfig);
+
+    // lease memory to sensorAO
+    publishWriteLocationToSensorAO(1000);
 
     auto* e = Q_NEW(QEvt, MPU_FIFO_FULL);
     qf_ctrl::PublishAndProcess(e, mRecorder);
 
-    auto recordedEvent = checkRecordedEventSignal(MPU_DATA_READY_SIG);
-    auto responseEvt = reinterpret_cast<const MpuBatchEvent*>(recordedEvent.get());
+    auto recordedEvent = dummy_windowAO->getRecordedEvent();
+    CHECK_TRUE(recordedEvent != nullptr);
+    CHECK_EQUAL(SAMPLES_WRITTEN_SIG, recordedEvent->sig);
+}
 
-    CHECK_EQUAL(BATCH_SAMPLE_COUNT, responseEvt->batch.count);
+TEST(SensorAOGroup, GivenInitializedAndWriteLocationNull_WhenMpuFIFOOverflow_ThenIncrementWriteMisses)
+{
+    using namespace cms::test;
+    startAOAndMoveToInitializedState(validConfig);
+
+    // 2 write misses
+    auto* e = Q_NEW(QEvt, MPU_FIFO_FULL);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    auto* e2 = Q_NEW(QEvt, MPU_FIFO_FULL);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+
+    CHECK_TRUE(SensorAO_getWriteMisses() == 2);
+}
+
+TEST(SensorAOGroup, GivenInitialized_WhenMpuFIFOOverflowAndWriteLocationNotCalled_ThenIncrementWriteMiss)
+{
+    using namespace cms::test;
+    startAOAndMoveToInitializedState(validConfig);
+
+    // works
+    publishWriteLocationToSensorAO(1000);
+    auto* e2 = Q_NEW(QEvt, MPU_FIFO_FULL);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+    // checkRecordedEventSignal(SAMPLES_WRITTEN_SIG);
+
+    // write miss
+    auto* e3 = Q_NEW(QEvt, MPU_FIFO_FULL);
+    qf_ctrl::PublishAndProcess(e3, mRecorder);
+
+    CHECK_TRUE(SensorAO_getWriteMisses() == 1);
+}
+
+TEST(SensorAOGroup, GivenInitialized_WhenWriteLocationReceived_ThenSetCurrentPointer)
+{
+    using namespace cms::test;
+    startAOAndMoveToInitializedState(validConfig);
+
+    SensorData temp;
+    auto* e = Q_NEW(WriteLocationEvent, WRITE_LOCATION_SIG);
+    e->writeLocation = &temp;
+    e->maxSamples = 1000;
+    qf_ctrl::PublishAndProcess(&e->super, mRecorder);
+
+    CHECK_TRUE(SensorAO_getCurrentWritePtr() == &temp);
 }
 
 // TODO: Edge cases for FIFO
