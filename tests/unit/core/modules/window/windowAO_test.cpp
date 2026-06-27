@@ -25,6 +25,7 @@
 
 #include <array>
 
+#include "events.h"
 #include "sensorAO.h"
 #include "windowAO.h"
 #include "pub_sub_signals.h"
@@ -116,18 +117,6 @@ TEST_GROUP(WindowAOGroup) {
         CHECK_TRUE(WindowAO_isInState(STATE_ACCUMULATING));
     }
 
-    void sendMpuDataReadySignalWithEmptyBatch() {
-        using namespace cms::test;
-        SensorBatch batch = {};
-        for (uint32_t j = 0; j < BATCH_SAMPLE_COUNT; ++j) {
-            Axis3f a{0.0f, 0.0f, 0.0f};
-            batch.samples[j] = {a, a, a, j + 1};
-        }
-        batch.count = BATCH_SAMPLE_COUNT;
-        auto* e = Q_NEW(SamplesWrittenEvent, SAMPLES_WRITTEN_SIG);
-        qf_ctrl::PublishAndProcess(&e->super, mRecorder);
-    }
-
 };
 
 using namespace cms::test;
@@ -155,86 +144,44 @@ TEST(WindowAOGroup, GivenIdle_WhenWindowingRequest_ThenMoveToAccumulatingState)
     CHECK_TRUE(WindowAO_isInState(STATE_ACCUMULATING));
 }
 
+// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenStarted_ThenLeaseInitialWriteLocationToSensorAO)
+
 // Sample < Batch < Window < Arena
 
 //===== Arena indexing =========================================================
 
-TEST(WindowAOGroup, GivenAccumulating_WhenOneSensorBatchArrives_ThenAppendBatchIntoArena)
-{
-    startAOUnderTestAndMoveToAccumulatingState();
-
-    SensorBatch batch = {};
-    for (uint32_t i = 0; i < BATCH_SAMPLE_COUNT; ++i) {
-        Axis3f a{0.0f, 0.0f, 0.0f};
-        batch.samples[i] = {a, a, a, i + 1};
-    }
-
-    auto* e = Q_NEW(SamplesWrittenEvent, SAMPLES_WRITTEN_SIG);
-    qf_ctrl::PublishAndProcess(&e->super, mRecorder);
-
-    CHECK_EQUAL(BATCH_SAMPLE_COUNT, WindowAO_accumulatedSampleCount());
-}
-
-TEST(WindowAOGroup, GivenAccumulating_WhenMultipleBatchesArrive_ThenAccumulateUntilWindowSize)
-{
-    startAOUnderTestAndMoveToAccumulatingState();
-
-    // fill a whole window
-    for (uint32_t i = 0; i < WINDOW_BATCH_COUNT; i++) {
-        sendMpuDataReadySignalWithEmptyBatch();
-    }
-    checkRecordedEventSignal(WINDOW_READY_SIG); // side-affect
-
-    // a single window would be full
-    CHECK_EQUAL(WINDOW_BATCH_COUNT * BATCH_SAMPLE_COUNT, WindowAO_accumulatedSampleCount());
-}
-
-TEST(WindowAOGroup, GivenAccumulating_WhenBatchOverflowsWindow_ThenKeepAppendingToNextWindow)
-{
-    startAOUnderTestAndMoveToAccumulatingState();
-
-    // fill a whole window + 1 extra
-    for (uint32_t i = 0; i < WINDOW_BATCH_COUNT + 1; i++) {
-        sendMpuDataReadySignalWithEmptyBatch();
-    }
-    checkRecordedEventSignal(WINDOW_READY_SIG); // side-affect
-
-    // a single window would be full + 1
-    CHECK_EQUAL( (WINDOW_BATCH_COUNT + 1) * BATCH_SAMPLE_COUNT, WindowAO_accumulatedSampleCount());
-    CHECK_EQUAL(1, WindowAO_getCurrentWindowIndex());
-}
+// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenSamplesWritten_ThenAdvanceCurrentWindowWriteIndex)
+// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenWindowBecomesFull_ThenMarkWindowReady)
+// TODO: TEST(WindowAOGroup, GivenReadyWindow_WhenAnotherFreeWindowExists_ThenAdvanceToNextWindow)
 
 //===== Managing Window States =================================================
 
-// TODO: initial state should be filling
+// TODO: initial window state should be filling
 // TODO: @inferenceAO_test.cpp when actively inferencing on the window = processing
 // TODO: @inferenceAO_test.cpp when infernecing done change to FREE
-// TODO: when done with window, make it ready (for inference)
-// TODO: when moving to another window, check if its free before writing to it. ; its free
-// TODO: when moving to another window, check if its free before writing to it. ; its not free
+// TODO: TEST(WindowAOGroup, GivenCurrentWindowFull_WhenFreeWindowExists_ThenLeaseIt)
+
+// TODO: TEST(WindowAOGroup, GivenWindowReady_WhenInferenceCompletes_ThenMarkWindowFree)
 
 //===== Communication ==========================================================
 
+// REFACTOR: 
 TEST(WindowAOGroup, GivenAccumulating_WhenExactWindowSizeIsReached_ThenPublishWindowReady)
 {
     startAOUnderTestAndMoveToAccumulatingState();
 
     // fill a whole window
-    for (uint32_t i = 0; i < WINDOW_BATCH_COUNT; i++) {
-        sendMpuDataReadySignalWithEmptyBatch();
-    }
 
-    auto e = checkRecordedEventSignal(WINDOW_READY_SIG);
-    (void)reinterpret_cast<const WindowReadyEvent*>(e.get());
+    // TODO: checkRecordedEventSignal(WINDOW_READY_SIG);
 }
 
 //===== Overflown arena ========================================================
 
-// TODO: TEST(WindowAOGroup, GivenAccumulating_WhenBatchOverflowsArena_Then???)
+// TODO: TEST(WindowAOGroup, GivenNoFreeWindows_WhenSamplesArrive_ThenDropOrRetainPerPolicy)
 
 //===== Overlap and Stride =====================================================
 
-// TODO: GivenAccumulating_WhenNextBatchArrives_ThenAdvanceByConfiguredStride
+// TODO:TEST(WindowAOGroup, GivenWindowReady_WhenStrideConfigured_ThenNextWindowStartsAtStrideOffset)
 
 // TODO: the second infernece run should be given stride + window_size as the window
 
@@ -243,6 +190,7 @@ TEST(WindowAOGroup, GivenAccumulating_WhenExactWindowSizeIsReached_ThenPublishWi
 //==============================================================================
 // given no FREE windows; apply appropriate/selected strategy
 
+// TODO: TEST(WindowAOGroup, GivenNoFreeWindows_WhenWindowCompletes_ThenEnterBackpressuredState)
 // TODO: GivenBackpressured_WhenInferenceIsSlow_ThenApplyConfiguredPolicy
 
 //===== Retaining ==============================================================

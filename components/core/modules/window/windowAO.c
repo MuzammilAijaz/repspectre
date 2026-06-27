@@ -154,19 +154,4 @@ bool WindowAO_isInState(WindowStateId state)
     return QHsm_isIn(&m_instance.super.super, handler);
 }
 
-uint16_t WindowAO_accumulatedSampleCount(void)
-{
-    uint32_t sampleCount = 0;
-    for (uint32_t i = 0; i < ARENA_WINDOW_COUNT; i++) {
-        sampleCount += (uint16_t)(m_instance.windowArena.windows[i].batchesCount * BATCH_SAMPLE_COUNT);
-    }
-
-    return sampleCount;
-}
-
-uint16_t WindowAO_getCurrentWindowIndex(void)
-{
-    return m_instance.currentWindow;
-}
-
 #endif

@@ -85,8 +85,6 @@ typedef enum {
 } WindowStateId;
 
 bool WindowAO_isInState(WindowStateId state);
-uint16_t WindowAO_accumulatedSampleCount(void);
-uint16_t WindowAO_getCurrentWindowIndex(void);
 
 #endif
 
