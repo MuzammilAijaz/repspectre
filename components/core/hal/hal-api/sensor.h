@@ -11,8 +11,6 @@ extern "C" {
 #define SENSOR_MAX_CALIB_LOOPS 10
 #define SENSOR_MAX_SAMPLE_RATE 1000
 
-#define BATCH_SAMPLE_COUNT         8U
-
 typedef struct {
     float x;
     float y;
@@ -25,11 +23,6 @@ typedef struct {
     Axis3f mag;
     uint32_t timestamp;
 } SensorData;
-
-typedef struct {
-    uint16_t count;
-    SensorData samples[BATCH_SAMPLE_COUNT];
-} SensorBatch;
 
 typedef struct {
     uint16_t sample_rate_hz;
