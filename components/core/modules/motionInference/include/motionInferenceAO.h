@@ -34,6 +34,10 @@ void MotionInferenceAO_dtor();
 typedef enum {
     STATE_INACTIVE,
     STATE_ARMED,
+    STATE_READY_BOTTOM,
+    STATE_ASCENDING,
+    STATE_LOCKOUT,
+    STATE_DESCENDING
 } MotionInferenceStateId;
 
 bool MotionInferenceAO_isInState(MotionInferenceStateId state);
