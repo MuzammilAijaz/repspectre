@@ -49,7 +49,11 @@ set(QP_PORT_QUTEST_DIR ${QPC_DIR}/ports/posix-qutest)
 set(QP_PORT_DIR ${QPC_DIR}/ports/posix)
 
 find_package(Threads REQUIRED)
+
 # =============================================================================
+
+# Testing options
+option(ENABLE_COVERAGE "Enable code coverage" OFF)
 
 include(CTest) # allows the creation of the target : "test"
 

@@ -32,6 +32,7 @@ test-all:
 
 # Run tests
 test-unit:
+	$(CMAKE) -B $(CMAKE_BUILD_DIR) -DENABLE_COVERAGE=ON
 	$(CMAKE) --build $(CMAKE_BUILD_DIR)
 	$(CTEST) --test-dir $(CMAKE_BUILD_DIR) -L unit --output-on-failure
 
