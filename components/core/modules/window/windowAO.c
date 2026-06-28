@@ -17,15 +17,16 @@ typedef struct {
 
     WindowArena arena;
     uint16_t window_index;
-    uint16_t processing_index;
     WindowBuffer *currentFillingWindow;
     WindowBuffer *currentProcessingWindow;
     bool firstWrite;
 } WindowAO;
 
-
-uint16_t findFreeWindow(WindowArena const * const arena, const uint16_t window_index);
-uint16_t findReadyWindow(WindowArena const * const arena, const uint16_t window_index);
+#if !CPPUTEST
+static WindowBuffer* findFreeWindow(WindowArena * const arena, WindowBuffer const * const current);
+static WindowBuffer* findReadyWindow(WindowArena * const arena, WindowBuffer const * const current);
+static uint16_t getNextHeadIndexOfWindow(uint16_t startIndex);
+#endif
 
 static QState WindowAO_initial(WindowAO *me, void const * par);
 static QState WindowAO_idle(WindowAO * me, const QEvt* e);
@@ -36,13 +37,28 @@ static WindowAO m_instance; // private member variable
 QActive * g_windowAO = NULL; // NOTE: only access this AFTER WindowAO_ctor() called
 
 void WindowAO_ctor(void) {
+    // strides should divide evenly
+    Q_ASSERT((ARENA_TOTAL_SAMPLES - WINDOW_SAMPLE_COUNT) % STRIDE_SAMPLE_COUNT == 0);
+    // size of a single window should not be greater than arena
+    Q_ASSERT(WINDOW_SAMPLE_COUNT > 0 && WINDOW_SAMPLE_COUNT <= ARENA_TOTAL_SAMPLES);
+    Q_ASSERT(STRIDE_SAMPLE_COUNT > 0 && STRIDE_SAMPLE_COUNT <= WINDOW_SAMPLE_COUNT);
+
     memset(&m_instance, 0, sizeof(m_instance));
+    
+    // Initialize window start/end indices in the arena
+    for (uint16_t i = 0; i < ARENA_WINDOW_COUNT; i++) {
+        uint16_t start = i * STRIDE_SAMPLE_COUNT;
+        uint16_t end = (uint16_t)((start + WINDOW_SAMPLE_COUNT - 1) % ARENA_TOTAL_SAMPLES);
+        *(uint16_t *)&m_instance.arena.windows[i].startIndex = start;
+        *(uint16_t *)&m_instance.arena.windows[i].endIndex = end;
+    }
+
     QActive_ctor(&m_instance.super, Q_STATE_CAST(WindowAO_initial));
     m_instance.window_index = 0;
-    m_instance.processing_index = 0xFFFF;
     m_instance.currentFillingWindow = &m_instance.arena.windows[0];
     m_instance.currentProcessingWindow = NULL;
     m_instance.firstWrite = true;
+    m_instance.arena.headIndex = 0;
 
     g_windowAO = &m_instance.super;
 }
@@ -101,7 +117,7 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
             // lease memory to SensorAO so it can start filling window
             WriteLocationEvent * const evt =
                 Q_NEW(WriteLocationEvent, WRITE_LOCATION_SIG);
-            evt->writeLocation = &me->currentFillingWindow->samples[0];
+            evt->writeLocation = &me->arena.samplesRing[me->arena.headIndex];
             evt->maxSamples = WINDOW_SAMPLE_COUNT;
 
             QACTIVE_POST(g_sensorAO, &evt->super, me);
@@ -111,31 +127,26 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
         }
 
         case INFERENCE_DONE_SIG: {
-            Q_ASSERT(me->processing_index != 0xFFFF);
             Q_ASSERT(me->currentProcessingWindow != NULL);
 
-            // provide the next ready window
-            uint16_t readyWindowIndex = findReadyWindow(&me->arena, me->processing_index);
+            // reset the inference window
+            // ASSUMPTION: only one inference window can exist.
+            me->currentProcessingWindow->state = WINDOW_STATE_FREE;
 
-            if (readyWindowIndex == 0xFFFF) {
+            // provide the next ready window
+            WindowBuffer *next = findReadyWindow( &me->arena, me->currentProcessingWindow);
+            Q_ASSERT(me->currentProcessingWindow != next); // make sure it doesnt return itself
+            if (next == NULL) {
+                Q_ASSERT(1==0);
                 // TODO: FAILURE TO GET FREE WINDOW // BACKPRESSURE STATE???
                 // rtn = Q_TRAN(Backpressured);
                 rtn = Q_HANDLED();
                 break;
             }
-            else {
-                me->processing_index = readyWindowIndex;
-            }
-
-            // reset the inference window
-            // ASSUMPTION: only one inference window can exist.
-            me->currentProcessingWindow->state = WINDOW_STATE_FREE;
-            me->currentProcessingWindow->samplesCount = 0;
-
-            Q_ASSERT(me->currentProcessingWindow != &me->arena.windows[readyWindowIndex]);
+            me->currentProcessingWindow = next;
             
+            // Send new data to continue inference
             WindowReadyEvent * const evt = Q_NEW(WindowReadyEvent, WINDOW_READY_SIG);
-            me->currentProcessingWindow = &me->arena.windows[readyWindowIndex];
             me->currentProcessingWindow->state = WINDOW_STATE_PROCESSING;
             evt->window = me->currentProcessingWindow;
             QF_PUBLISH(&evt->super, &me->super);
@@ -147,45 +158,51 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
         case SAMPLES_WRITTEN_SIG: {
             // REFACTOR: to a normal event
             SamplesWrittenEvent const * evt = (SamplesWrittenEvent const *)e;
-
-            // ASSUMPTION: all samples to complete a window were written
-            me->currentFillingWindow->samplesCount += WINDOW_SAMPLE_COUNT;
             me->currentFillingWindow->state = WINDOW_STATE_READY;
 
             // start inference from here only for first
             if (me->firstWrite) {
                 WindowReadyEvent * const evt = Q_NEW(WindowReadyEvent, WINDOW_READY_SIG);
-                me->processing_index = me->window_index;
                 me->currentFillingWindow->state = WINDOW_STATE_PROCESSING;
                 me->currentProcessingWindow = me->currentFillingWindow;
                 evt->window = me->currentProcessingWindow;
                 QF_PUBLISH(&evt->super, &me->super);
-
-                me->firstWrite = false;
             }
 
-            // Advance the window
-            // me->currentFillingWindow = &me->arena.windows[++me->window_index];
-            uint16_t index = findFreeWindow(&me->arena, me->window_index);
+            //----- Advance Window -----------------------------------------
 
-            if (index == 0xFFFF) {
+            WindowBuffer* next = findFreeWindow(&me->arena, me->currentFillingWindow);
+            if (next == NULL) {
+                Q_ASSERT(1==0);
                 // TODO: FAILURE TO GET FREE WINDOW // BACKPRESSURE STATE???
                 // rtn = Q_TRAN(Backpressured);
                 rtn = Q_HANDLED();
                 break;
             }
-            else {
-                me->window_index = index;
+            if (me->firstWrite) {
+                // TODO: what if findFreeWindow finds a window not directly infront?? would headIndex still hold?
+                me->arena.headIndex = (uint16_t)((me->arena.headIndex + WINDOW_SAMPLE_COUNT) % ARENA_TOTAL_SAMPLES);
+            } else {
+                uint16_t newHead = next->startIndex + (WINDOW_SAMPLE_COUNT - STRIDE_SAMPLE_COUNT);
+                me->arena.headIndex = newHead;
+                Q_ASSERT(getNextHeadIndexOfWindow(next->startIndex) == me->arena.headIndex);
             }
 
-            me->currentFillingWindow = &me->arena.windows[me->window_index];
-            me->currentFillingWindow->samplesCount = 0;
+            me->currentFillingWindow = next;
             me->currentFillingWindow->state = WINDOW_STATE_FILLING;
+
+            //----- Lease --------------------------------------------------
 
             // lease memory to SensorAO so it can start filling window again
             WriteLocationEvent * const event = Q_NEW(WriteLocationEvent, WRITE_LOCATION_SIG);
-            event->writeLocation = &me->currentFillingWindow->samples[0];
-            event->maxSamples = WINDOW_SAMPLE_COUNT;
+            event->writeLocation = &me->arena.samplesRing[me->arena.headIndex];
+            if (me->firstWrite) {
+                event->maxSamples = WINDOW_SAMPLE_COUNT;
+
+                me->firstWrite = false;
+            } else {
+                event->maxSamples = STRIDE_SAMPLE_COUNT;
+            }
             QACTIVE_POST(g_sensorAO, &event->super, me);
 
             rtn = Q_HANDLED();
@@ -203,44 +220,45 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
 
 //===== Helpers ================================================================
 
-uint16_t findFreeWindow(WindowArena const * const arena, const uint16_t window_index) 
+WindowBuffer* findFreeWindow(WindowArena * const arena, WindowBuffer const * const current)
 {
-    // start from the current index (as its most likely to be directly in-front)
-    // ASSUMPTION: called before moving to next window
-    uint16_t index = (window_index + 1) % ARENA_WINDOW_COUNT;
+    uint16_t index = (uint16_t)((current - arena->windows + 1) % ARENA_WINDOW_COUNT);
 
-    // ASSUMPTION: arena size
     for (uint16_t count = 0; count < ARENA_WINDOW_COUNT - 1; count++) {
-        Q_ASSERT(index != window_index);
+        WindowBuffer *candidate = &arena->windows[index];
 
-        if (arena->windows[index].state == WINDOW_STATE_FREE) {
-            return index; // PASS
+        if (candidate->state == WINDOW_STATE_FREE) {
+            return candidate;
         }
 
-        index = (index + 1) % ARENA_WINDOW_COUNT;
+        index = (uint16_t)((index + 1) % ARENA_WINDOW_COUNT);
     }
 
-    return 0xFFFF; // FAILURE
+    return NULL;
 }
 
-uint16_t findReadyWindow(WindowArena const * const arena, const uint16_t window_index)
+WindowBuffer* findReadyWindow(WindowArena * const arena, WindowBuffer const * const current)
 {
-    // start from the current index (as its most likely to be directly in-front)
-    // ASSUMPTION: called before moving to next window
-    uint16_t index = (window_index + 1) % ARENA_WINDOW_COUNT;
+    uint16_t index = (uint16_t)((current - arena->windows + 1) % ARENA_WINDOW_COUNT);
 
-    // ASSUMPTION: arena size
     for (uint16_t count = 0; count < ARENA_WINDOW_COUNT - 1; count++) {
-        Q_ASSERT(index != window_index);
+        WindowBuffer *candidate = &arena->windows[index];
 
-        if (arena->windows[index].state == WINDOW_STATE_READY) {
-            return index; // PASS
+        if (candidate->state == WINDOW_STATE_READY) {
+            return candidate;
         }
 
-        index = (index + 1) % ARENA_WINDOW_COUNT;
+        index = (uint16_t)((index + 1) % ARENA_WINDOW_COUNT);
     }
 
-    return 0xFFFF; // FAILURE
+    return NULL;
+}
+
+/* A window represented with its startIndex here. */
+uint16_t getNextHeadIndexOfWindow(uint16_t startIndex)
+{
+    return (uint16_t)((startIndex + (WINDOW_SAMPLE_COUNT - STRIDE_SAMPLE_COUNT)) %
+            ARENA_TOTAL_SAMPLES);
 }
 
 //===== Testing ================================================================
