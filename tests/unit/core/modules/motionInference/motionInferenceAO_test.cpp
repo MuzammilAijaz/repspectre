@@ -88,6 +88,16 @@ TEST_GROUP(MotionInferenceAOGroup) {
         CHECK_TRUE(MotionInferenceAO_isInState(STATE_INACTIVE));
     }
 
+    void startAOAndMoveToReadyState() {
+        using namespace cms::test;
+        startAOUnderTest();
+
+        auto* e = Q_NEW(QEvt, ACTIVATE_MOTION_INFERENCE);
+        qf_ctrl::PublishAndProcess(e, mRecorder);
+
+        MotionInferenceAO_isInState(STATE_READY_BOTTOM);
+    }
+
 };
 
 using namespace cms::test;
@@ -97,8 +107,18 @@ TEST(MotionInferenceAOGroup, WhenConstructed_ThenEntersInactiveState)
     startAOUnderTest();
 }
 
+TEST(MotionInferenceAOGroup, GivenConstructed_WhenInferenceAcitvated_ThenEntersReadyState)
+{
+    startAOUnderTest();
+
+    auto* e = Q_NEW(QEvt, ACTIVATE_MOTION_INFERENCE);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+
+    MotionInferenceAO_isInState(STATE_READY_BOTTOM);
+}
+
 //==============================================================================
-// | Idle
+// | Armed
 //==============================================================================
 
 

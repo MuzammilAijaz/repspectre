@@ -50,6 +50,10 @@ typedef enum PubSubSignal {
     WRITE_LOCATION_SIG,
     WINDOW_READY_SIG,
 
+    // ---- MotionInference ----------------------------------------
+
+    ACTIVATE_MOTION_INFERENCE,
+
     // ---- Inference ----------------------------------------------
     INFERENCE_DONE_SIG,
 

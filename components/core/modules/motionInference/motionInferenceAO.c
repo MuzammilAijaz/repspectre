@@ -84,6 +84,11 @@ QState MotionInferenceAO_inactive(MotionInferenceAO * me, const QEvt* e) {
             break;
         }
 
+        case ACTIVATE_MOTION_INFERENCE: {
+            rtn = Q_TRAN(&MotionInferenceAO_armed);
+            break;
+        }
+
         default: {
             rtn = Q_SUPER(&QHsm_top);
             break;
@@ -100,6 +105,12 @@ QState MotionInferenceAO_armed(MotionInferenceAO * me, const QEvt* e) {
         case Q_ENTRY_SIG: {
 
             rtn = Q_HANDLED();
+            break;
+        }
+
+        case Q_INIT_SIG: {
+            // For now, jump straight into READY_BOTTOM on first window
+            rtn = Q_TRAN(&MotionInferenceAO_ready_bottom);
             break;
         }
 
