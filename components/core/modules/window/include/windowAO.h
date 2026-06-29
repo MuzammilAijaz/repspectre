@@ -99,6 +99,7 @@ typedef struct {
 /** `WindowAO` sends the window location to inferenceAOs  */
 typedef struct {
     QEvt super;
+    SensorData const * samplesRing;
     WindowBuffer const * window; // MEMORY-WARN: manage concurrency read / write
 } WindowReadyEvent;
 
@@ -144,6 +145,8 @@ void WindowAO_ctor(void);
  */
 void WindowAO_dtor();
 
+WindowArena* WindowAO_getArena();
+
 #ifdef CPPUTEST
 
 typedef enum {
@@ -154,7 +157,6 @@ typedef enum {
 bool WindowAO_isInState(WindowStateId state);
 
 WindowBuffer* WindowAO_getCurrentFillingWindow();
-WindowArena* WindowAO_getArena();
 
 // actual helper functions made public for testing
 WindowBuffer* findFreeWindow(WindowArena * const arena, WindowBuffer const * const current);

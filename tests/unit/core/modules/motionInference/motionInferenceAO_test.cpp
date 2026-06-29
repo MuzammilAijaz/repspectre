@@ -12,6 +12,7 @@
 #include "pub_sub_signals.h"
 
 #include "unit_test_utils.hpp"
+#include "windowAO.h"
 
 // Test group
 TEST_GROUP(MotionInferenceAOGroup) {
@@ -120,5 +121,37 @@ TEST(MotionInferenceAOGroup, GivenConstructed_WhenInferenceAcitvated_ThenEntersR
 //==============================================================================
 // | Armed
 //==============================================================================
+
+//===== Ready ==================================================================
+
+TEST(MotionInferenceAOGroup, GivenReadyAndHigherThanThreshold_WhenWindowReady_TransitionToAscending)
+{
+    startAOAndMoveToReadyState();
+
+    SensorData samplesRing[ARENA_TOTAL_SAMPLES] = {0.0};
+    WindowBuffer window = {
+        .startIndex = 0,
+        .endIndex = WINDOW_SAMPLE_COUNT - 1,
+        .state = WINDOW_STATE_PROCESSING
+    };
+
+    auto* e = Q_NEW(WindowReadyEvent, WINDOW_READY_SIG);
+    e->window = &window;
+    e->samplesRing = samplesRing;
+    qf_ctrl::PublishAndProcess(&e->super, mRecorder);
+
+    MotionInferenceAO_isInState(STATE_ASCENDING);
+}
+
+//===== Ascending ==============================================================
+
+
+
+//===== Lockout ================================================================
+
+
+
+//===== Descending =============================================================
+
 
 

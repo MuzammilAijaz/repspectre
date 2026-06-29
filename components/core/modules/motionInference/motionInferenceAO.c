@@ -7,6 +7,7 @@
 #include "qsafe.h"
 
 #include "pub_sub_signals.h"
+#include "windowAO.h"
 
 Q_DEFINE_THIS_MODULE("MotionInferenceAO")
 
@@ -23,11 +24,13 @@ typedef struct {
     
     // Configurable thresholds
 
-    /** Threshold to transition to ASCENDING */
     float ascent_threshold_g;
-    /** Threshold to transition to LOCKOUT */
     float lockout_threshold_g;
+    float descent_threshold_g;
+    float ready_bottom_threshold_g;
 } MotionInferenceAO;
+
+static float extract_window_z_accel_average(const WindowReadyEvent* e);
 
 static QState MotionInferenceAO_initial(MotionInferenceAO * const me, void const * const par);
 static QState MotionInferenceAO_inactive(MotionInferenceAO * me, const QEvt* e);
@@ -56,9 +59,11 @@ void MotionInferenceAO_ctor(void) {
     m_instance.peak_velocity = 0.0f;
     m_instance.phase_start_time = 0;
     
-    // Thresholds (TODO: change)
-    m_instance.ascent_threshold_g = 1.05f; // 
-    m_instance.lockout_threshold_g = 1.05f; // Threshold to transition back to DESCENDING/LOCKOUT
+    // Thresholds (demo values)
+    m_instance.ascent_threshold_g = 1.05f; // Threshold to transition to ASCENDING
+    m_instance.lockout_threshold_g = 0.95f; // Threshold to transition back to LOCKOUT
+    m_instance.descent_threshold_g = 0.85f; // Threshold to transition to DESCENDING
+    m_instance.ready_bottom_threshold_g = 1.0f; // Threshold to transition to READY_BOTTOM
 
     QActive_ctor(&m_instance.super, Q_STATE_CAST(MotionInferenceAO_initial));
 
@@ -132,6 +137,19 @@ QState MotionInferenceAO_ready_bottom(MotionInferenceAO * me, const QEvt* e) {
             rtn = Q_HANDLED();
             break;
         }
+
+        case WINDOW_READY_SIG: {
+            const WindowReadyEvent* wre = (const WindowReadyEvent*)e;
+            float avg_z = extract_window_z_accel_average(wre);
+            
+            if (avg_z > me->ascent_threshold_g) {
+                rtn = Q_TRAN(&MotionInferenceAO_ascending);
+            } else {
+                rtn = Q_HANDLED();
+            }
+            break;
+        }
+
         default: {
             rtn = Q_SUPER(&MotionInferenceAO_armed);
             break;
@@ -149,6 +167,19 @@ QState MotionInferenceAO_ascending(MotionInferenceAO * me, const QEvt* e) {
             rtn = Q_HANDLED();
             break;
         }
+
+        case WINDOW_READY_SIG: {
+            const WindowReadyEvent* wre = (const WindowReadyEvent*)e;
+            float avg_z = extract_window_z_accel_average(wre);
+            
+            if (avg_z < me->lockout_threshold_g) { 
+                rtn = Q_TRAN(&MotionInferenceAO_lockout);
+            } else {
+                rtn = Q_HANDLED();
+            }
+            break;
+        }
+
         default: {
             rtn = Q_SUPER(&MotionInferenceAO_armed);
             break;
@@ -169,6 +200,19 @@ QState MotionInferenceAO_lockout(MotionInferenceAO * me, const QEvt* e) {
             rtn = Q_HANDLED();
             break;
         }
+
+        case WINDOW_READY_SIG: {
+            const WindowReadyEvent* wre = (const WindowReadyEvent*)e;
+            float avg_z = extract_window_z_accel_average(wre);
+            
+            if (avg_z < me->descent_threshold_g) { 
+                rtn = Q_TRAN(&MotionInferenceAO_descending);
+            } else {
+                rtn = Q_HANDLED();
+            }
+            break;
+        }
+
         default: {
             rtn = Q_SUPER(&MotionInferenceAO_armed);
             break;
@@ -186,6 +230,19 @@ QState MotionInferenceAO_descending(MotionInferenceAO * me, const QEvt* e) {
             rtn = Q_HANDLED();
             break;
         }
+
+        case WINDOW_READY_SIG: {
+            const WindowReadyEvent* wre = (const WindowReadyEvent*)e;
+            float avg_z = extract_window_z_accel_average(wre);
+            
+            if (avg_z > me->ready_bottom_threshold_g) { 
+                rtn = Q_TRAN(&MotionInferenceAO_ready_bottom);
+            } else {
+                rtn = Q_HANDLED();
+            }
+            break;
+        }
+
         default: {
             rtn = Q_SUPER(&MotionInferenceAO_armed);
             break;
@@ -193,6 +250,23 @@ QState MotionInferenceAO_descending(MotionInferenceAO * me, const QEvt* e) {
     }
 
     return rtn;
+}
+
+//===== Helpers ================================================================
+
+static float extract_window_z_accel_average(const WindowReadyEvent* e) {
+    if (!e || !e->window) return 0.0f;
+
+    float sum = 0.0f;
+    uint16_t index = e->window->startIndex;
+
+    // ASSUMPTION: a window = WINDOW_SAMPLE_COUNT
+    for (uint16_t i = 0; i < WINDOW_SAMPLE_COUNT; i++) {
+        sum += e->samplesRing[index].gyro.z;
+        index = (index + 1) % ARENA_TOTAL_SAMPLES;
+    }
+
+    return sum / WINDOW_SAMPLE_COUNT;
 }
 
 //===== Testing ================================================================

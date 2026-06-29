@@ -18,6 +18,7 @@ target_link_libraries(motionInferenceAO
     qp-headers
 
     module-api # for event signals; since its INTERFACE lib, directories included automaticaly
+    windowAO
 )
 
 # Optional: alias (future-proof naming)
