@@ -264,6 +264,7 @@ function(add_hil_test TEST_NAME SKETCH_SUBDIR LINK_LIBS)
             --qpc ${QPC_DIR}
             --sketch ${TESTS_DIR}/hil/arduino/${SKETCH_SUBDIR}
             --work-dir ${TEST_WORK_DIR}
+            --define ARDUINO_HIL_TEST
             # TODO: verify if this worked!
             --qspy-baud 1500000
             # ${ARGN} # Pass remaining python scripts

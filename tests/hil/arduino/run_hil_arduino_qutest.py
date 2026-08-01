@@ -718,6 +718,13 @@ def main() -> int:
         help="Seconds to wait after upload before starting qspy/qutest",
     )
 
+    parser.add_argument(
+        "--define",
+        action="append",
+        default=[],
+        help="Add C preprocessor definition (--define ARDUINO_HIL_TEST)",
+    )
+
     args = parser.parse_args()
 
     config = {}
@@ -792,13 +799,15 @@ def main() -> int:
             build_path.mkdir(parents=True, exist_ok=True)
             out_dir.mkdir(parents=True, exist_ok=True)
 
-        extra_defines = ""
+        extra_defines = " ".join(
+            f"-D{d}" for d in args.define
+        )
 
         # ESP32-S3 commonly uses the built-in USB-Serial/JTAG (CDC) interface,
         # which the Arduino-ESP32 core exposes as HWCDCSerial and selects
         # via compile-time defines.
         if ("esp32s3" in args.fqbn) and ("/dev/ttyACM" in args.port):
-            extra_defines = "-DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1"
+            extra_defines += "-DARDUINO_USB_CDC_ON_BOOT=1 -DARDUINO_USB_MODE=1"
 
         stamp_path = stage_root / ".repspectre_hil_stamp.json"
         upload_stamp_path = stage_root / ".repspectre_hil_upload_stamp.json"

@@ -24,7 +24,6 @@ Q_DEFINE_THIS_MODULE("SensorEsp32")
 #define CLOSE_DRAIN 0
 
 //--------------------------------------------------------------
-#define HIL_TEST 1
 //--------------------------------------------------------------
 
 static I2cDrv* i2c = NULL;
@@ -152,7 +151,7 @@ static void IRAM_ATTR mpuISR(void* arg) {
 
     // HIL-TEST-NOTE: running this block messes up with qp trace stream
     // RESEARCH: is it right to publish and get status from isr???
-#if !HIL_TEST
+#ifndef ARDUINO_HIL_TEST
     uint8_t status = mpu6050GetIntStatus();
 
     // FIFO overflow interrupt
