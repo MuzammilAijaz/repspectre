@@ -1,3 +1,14 @@
+#==============================================================================
+if(IDF_PATH)
+    idf_component_register(
+        SRCS "i2cdev.c"
+        INCLUDE_DIRS "include"
+        REQUIRES platform-api i2c gpio freertos
+    )
+    return()
+endif()
+#==============================================================================
+
 add_library(platform-common INTERFACE)
 
 target_sources(platform-common INTERFACE

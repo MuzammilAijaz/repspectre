@@ -1,3 +1,14 @@
+#==============================================================================
+if(IDF_PATH)
+    idf_component_register(
+        SRCS "windowAO.c"
+        INCLUDE_DIRS "include"
+        REQUIRES qpc module-api hal-api sensor
+    )
+    return()
+endif()
+#==============================================================================
+
 add_library(windowAO INTERFACE)
 
 target_sources(windowAO INTERFACE

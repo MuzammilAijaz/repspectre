@@ -1,3 +1,14 @@
+#==============================================================================
+if(IDF_PATH)
+    idf_component_register(
+        SRCS "bluetoothAO.c" "bluetoothBridge.c"
+        INCLUDE_DIRS "include"
+        REQUIRES qpc hal-api module-api
+    )
+    return()
+endif()
+#==============================================================================
+
 add_library(bluetoothAO INTERFACE)
 
 target_sources(bluetoothAO INTERFACE

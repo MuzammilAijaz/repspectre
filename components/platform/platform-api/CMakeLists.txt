@@ -1,3 +1,13 @@
+#==============================================================================
+if(IDF_PATH)
+    idf_component_register(
+        INCLUDE_DIRS "." "bsp"
+        REQUIRES i2c gpio
+    )
+    return()
+endif()
+#==============================================================================
+
 add_library(platform-api INTERFACE)
 
 # Tell CMake where to find the headers

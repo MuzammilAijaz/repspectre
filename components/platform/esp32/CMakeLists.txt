@@ -1,7 +1,32 @@
-
-# TODO: add esp idf platform headers/source files
-# NOTE: This would compile for now, as the esp idf apii is being included from the
-# arduino framework espcore
+#==============================================================================
+if(IDF_PATH)
+    idf_component_register(
+        SRCS
+            "BSP_esp.c"
+            "i2c_esp32.c"
+            "i2cdev_esp32.c"
+            "bluetooth_esp.c"
+            "sensor_esp32.c"
+            "criticalSection_esp.c"
+        INCLUDE_DIRS "include"
+        REQUIRES
+            bt
+            freertos
+            nvs_flash
+            esp_driver_gpio
+            platform-api
+            common
+            i2c
+            mpu6050
+            qpc
+            hal-api
+            module-api
+            esp_timer
+            bluetooth
+    )
+    return()
+endif()
+#==============================================================================
 
 add_library(platform-esp32 INTERFACE)
 

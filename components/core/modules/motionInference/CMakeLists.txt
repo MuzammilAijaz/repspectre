@@ -1,3 +1,14 @@
+#==============================================================================
+if(IDF_PATH)
+    idf_component_register(
+        SRCS "motionInferenceAO.c"
+        INCLUDE_DIRS "include"
+        REQUIRES qpc module-api window
+    )
+    return()
+endif()
+#==============================================================================
+
 add_library(motionInferenceAO INTERFACE)
 
 target_sources(motionInferenceAO INTERFACE

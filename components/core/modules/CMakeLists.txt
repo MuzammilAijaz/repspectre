@@ -1,3 +1,10 @@
+#==============================================================================
+# prevents ESP-IDF from trying to interpret this file as a component.
+if(IDF_PATH)
+    return()
+endif()
+#==============================================================================
+
 # Add common qp headers to avoid direct linking to
 # qpc inside modules. This can avoid symbol conflicts
 add_library(qp-headers INTERFACE)

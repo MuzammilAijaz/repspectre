@@ -1,3 +1,12 @@
+#==============================================================================
+if(IDF_PATH)
+    idf_component_register(
+        INCLUDE_DIRS "."
+    )
+    return()
+endif()
+#==============================================================================
+
 add_library(gpio INTERFACE)
 
 # Tell CMake where to find the headers

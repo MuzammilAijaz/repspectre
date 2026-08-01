@@ -1,3 +1,19 @@
+#==============================================================================
+if(IDF_PATH)
+    idf_component_register(
+        SRCS "i2cdev_mpu6050.c"
+        INCLUDE_DIRS "include"
+        REQUIRES
+            freertos
+            i2c
+            platform-api
+            common
+            qpc
+    )
+    return()
+endif()
+#==============================================================================
+
 add_library(i2cdev-mpu6050 INTERFACE i2cdev_mpu6050.c)
 
 target_include_directories(i2cdev-mpu6050 INTERFACE

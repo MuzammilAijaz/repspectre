@@ -1,3 +1,14 @@
+#==============================================================================
+if(IDF_PATH)
+    idf_component_register(
+        SRCS "sequencerAO.c"
+        INCLUDE_DIRS "include"
+        REQUIRES sensor bluetooth window platform-api motionInference
+    )
+    return()
+endif() 
+#==============================================================================
+
 add_library(sequencerAO INTERFACE)
 
 target_sources(sequencerAO INTERFACE
