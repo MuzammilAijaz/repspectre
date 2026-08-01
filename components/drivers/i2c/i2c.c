@@ -34,10 +34,17 @@
 #include <string.h>
 #include <stdbool.h>
 
+#if defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/semphr.h"
+#else
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
 #include "semphr.h"
+#endif
 
 #include <assert.h> // TODO: change to qassert.h
 // #include "i2c_config.h"

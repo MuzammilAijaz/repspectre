@@ -2,9 +2,15 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#if defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
+#else
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "task.h"
+#endif
 
 #include "i2cdev.h"
 #include "i2c.h"

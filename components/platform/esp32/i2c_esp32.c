@@ -1,8 +1,13 @@
 #include <stdbool.h>
 
+#if defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#else
 #include "FreeRTOS.h"
-#include "qsafe.h"
 #include "semphr.h"
+#endif
+#include "qsafe.h"
 
 #include "driver/i2c.h"
 #include "esp_err.h"

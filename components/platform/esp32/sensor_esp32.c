@@ -11,6 +11,9 @@
 #include "mpu6050.h"
 #include "i2c.h"
 #include "qpc.h"
+#if defined(ESP_PLATFORM)
+#include "esp_timer.h"
+#endif
 #include <stdint.h>
 
 Q_DEFINE_THIS_MODULE("SensorEsp32")

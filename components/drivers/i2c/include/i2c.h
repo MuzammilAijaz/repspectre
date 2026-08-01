@@ -8,9 +8,15 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#if defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/queue.h"
+#else
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "queue.h"
+#endif
 
 #include "gpio.h"
 // #include "i2c_config.h"

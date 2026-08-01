@@ -26,10 +26,17 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#if defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#else
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "task.h"
 #include "queue.h"
+#endif
 
 #include "driver/i2c.h"
 #include "esp_err.h"
