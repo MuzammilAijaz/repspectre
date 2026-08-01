@@ -61,6 +61,14 @@ void SequencerAO_ctor(const BspInterface * const bsp) {
     m_instance.bootState = (BootState) { false, false };
 
     g_sequencerAO = &m_instance.super;
+
+    QS_OBJ_DICTIONARY(&m_instance);
+    QS_FUN_DICTIONARY(&SequencerAO_initial);
+    QS_FUN_DICTIONARY(&SequencerAO_booting);
+    QS_FUN_DICTIONARY(&SequencerAO_operational);
+    QS_FUN_DICTIONARY(&SequencerAO_operational_connected);
+    QS_FUN_DICTIONARY(&SequencerAO_operational_disconnected);
+    QS_FUN_DICTIONARY(&SequencerAO_error);
 }
 
 void SequencerAO_dtor(void) {

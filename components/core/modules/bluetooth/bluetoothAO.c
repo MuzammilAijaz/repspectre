@@ -43,6 +43,15 @@ void BluetoothAO_ctor(const BluetoothInterface * const bluetooth, BluetoothBridg
     m_instance.bridge = bridge;
 
     g_bluetoothAO = &m_instance.super;
+
+    QS_OBJ_DICTIONARY(&m_instance);
+    QS_FUN_DICTIONARY(&BluetoothAO_initial);
+    QS_FUN_DICTIONARY(&BluetoothAO_uninitialized);
+    QS_FUN_DICTIONARY(&BluetoothAO_initialized);
+    QS_FUN_DICTIONARY(&BluetoothAO_initialized_operational);
+    QS_FUN_DICTIONARY(&BluetoothAO_initialized_operational_advertising);
+    QS_FUN_DICTIONARY(&BluetoothAO_initialized_operational_connected);
+    QS_FUN_DICTIONARY(&BluetoothAO_error);
 }
 
 void BluetoothAO_dtor() {

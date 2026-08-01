@@ -61,6 +61,11 @@ void WindowAO_ctor(void) {
     m_instance.arena.headIndex = 0;
 
     g_windowAO = &m_instance.super;
+
+    QS_OBJ_DICTIONARY(&m_instance);
+    QS_FUN_DICTIONARY(&WindowAO_initial);
+    QS_FUN_DICTIONARY(&WindowAO_idle);
+    QS_FUN_DICTIONARY(&WindowAO_accumulating);
 }
 
 void WindowAO_dtor(void) {

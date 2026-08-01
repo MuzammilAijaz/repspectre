@@ -50,6 +50,12 @@ void SensorAO_ctor(const SensorInterface * const sensor) {
     m_instance.writeMisses = 0;
 
     g_sensorAO = &m_instance.super;
+
+    QS_OBJ_DICTIONARY(&m_instance);
+    QS_FUN_DICTIONARY(&SensorAO_initial);
+    QS_FUN_DICTIONARY(&SensorAO_uninitialized);
+    QS_FUN_DICTIONARY(&SensorAO_initialized);
+    QS_FUN_DICTIONARY(&SensorAO_error);
 }
 
 void SensorAO_dtor() {

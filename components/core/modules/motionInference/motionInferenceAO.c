@@ -68,6 +68,15 @@ void MotionInferenceAO_ctor(void) {
     QActive_ctor(&m_instance.super, Q_STATE_CAST(MotionInferenceAO_initial));
 
     g_motionInferenceAO = &m_instance.super;
+
+    QS_OBJ_DICTIONARY(&m_instance);
+    QS_FUN_DICTIONARY(&MotionInferenceAO_initial);
+    QS_FUN_DICTIONARY(&MotionInferenceAO_armed);
+    QS_FUN_DICTIONARY(&MotionInferenceAO_lockout);
+    QS_FUN_DICTIONARY(&MotionInferenceAO_ascending);
+    QS_FUN_DICTIONARY(&MotionInferenceAO_descending);
+    QS_FUN_DICTIONARY(&MotionInferenceAO_ready_bottom);
+    QS_FUN_DICTIONARY(&MotionInferenceAO_inactive);
 }
 
 void MotionInferenceAO_dtor(void) {
