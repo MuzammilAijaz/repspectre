@@ -39,14 +39,13 @@ target_include_directories(freertos INTERFACE
 FetchContent_Declare(
     qpc
     GIT_REPOSITORY https://github.com/QuantumLeaps/qpc.git
-    GIT_TAG v7.3.4
+    GIT_TAG v7.3.3
 )
 FetchContent_MakeAvailable(qpc)
 
 set(QPC_DIR ${qpc_SOURCE_DIR})
 # QUTest port (used by behavior tests)
 set(QP_PORT_QUTEST_DIR ${QPC_DIR}/ports/posix-qutest)
-set(QP_PORT_DIR ${QPC_DIR}/ports/posix)
 
 find_package(Threads REQUIRED)
 
