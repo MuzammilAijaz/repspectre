@@ -47,7 +47,9 @@ if(NOT REPSPECTRE_ENABLE_HIL_TESTS)
     return()
 endif()
 
+set(Python3_EXECUTABLE "/usr/bin/python3" CACHE FILEPATH "Forced Python path")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+message(STATUS "Python executable: ${Python3_EXECUTABLE}")
 
 set(ARDUINO_CLI "" CACHE FILEPATH "Path to arduino-cli")
 set(ARDUINO_FQBN "" CACHE STRING "Arduino FQBN (required for HIL tests)")
