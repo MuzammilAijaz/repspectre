@@ -149,20 +149,16 @@ static void IRAM_ATTR mpuISR(void* arg) {
     mpuIsrCount++;
     //--------------------------------------------------------------
 
-    // HIL-TEST-NOTE: running this block messes up with qp trace stream
-    // RESEARCH: is it right to publish and get status from isr???
 #ifndef ARDUINO_HIL_TEST
-    uint8_t status = mpu6050GetIntStatus();
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-    // FIFO overflow interrupt
-    if (status & (1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT)) {
-        //----- DEBUG --------------------------------------------------
-        fifoOverflowIsrOccured = true;
-        //--------------------------------------------------------------
-        static const QEvt fifoFull = QEVT_INITIALIZER(MPU_FIFO_FULL);
-        QF_PUBLISH(&fifoFull, g_sensorAO);
-    }
+    // NOTE: i2c takes too long, causing watchdog MPU_ISR_SIG is used instead
+    static const QEvt mpuIsr = QEVT_INITIALIZER(MPU_ISR_SIG);
+
+    QACTIVE_POST_FROM_ISR(g_sensorAO, &mpuIsr, &xHigherPriorityTaskWoken, (void *)0);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 #endif
+
 }
 
 // ASSUMPTION: DLPF is enabled and base clock is 1khz
@@ -388,9 +384,22 @@ static uint32_t mpu6050_getFifo_adapter(SensorData * const out, uint32_t maxSamp
     return packetCount;
 }
 
+bool mpu6050_isFifoOverflown_adapter() {
+    uint8_t status = mpu6050GetIntStatus();
+
+    // TODO(high): handle when status == 0xFF (i2c failure)
+
+    // FIFO overflow interrupt
+    if (status & (1 << MPU6050_INTERRUPT_FIFO_OFLOW_BIT)) {
+        return 1;
+    }
+    return 0;
+}
+
 SensorInterface espSensorInterface = {
     .Sensor_init = mpu6050_init_adapter,
     .Sensor_GetFifo = mpu6050_getFifo_adapter,
     .Sensor_readGyro = mpu6050_readGyro_adapter,
     .Sensor_readAcc = mpu6050_readAcc_adapter,
+    .Sensor_IsFifoOverflown = mpu6050_isFifoOverflown_adapter,
 };
