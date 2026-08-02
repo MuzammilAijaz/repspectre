@@ -12,6 +12,7 @@
 #include "Fake_BSP.h"
 #include "sensorAO.h" // for g_sensorAO
 #include "bluetoothAO.h" // for g_bluetoothAO
+#include "windowAO.h" // for g_windowAO
 
 #include "pub_sub_signals.h"
 #include <CppUTest/UtestMacros.h>
@@ -24,6 +25,7 @@ TEST_GROUP(SequencerAOGroup)
 
     std::unique_ptr<cms::test::DefaultDummyActiveObject> dummy_sensorAO = nullptr;
     std::unique_ptr<cms::test::DefaultDummyActiveObject> dummy_bluetoothAO = nullptr;
+    std::unique_ptr<cms::test::DefaultDummyActiveObject> dummy_windowAO = nullptr;
 
     // Storage for the event queue of the sequencerAO, holding 10 events max
     std::array<const QEvt*, 10> underTestEventQueueStorage;
@@ -47,13 +49,15 @@ TEST_GROUP(SequencerAOGroup)
 
         setRecorder(mRecorder);
 
-        dummy_sensorAO = setupDummyObject(&g_sensorAO, qf_ctrl::DUMMY_AO_A_PRIORITY);
-        dummy_bluetoothAO = setupDummyObject(&g_bluetoothAO, qf_ctrl::DUMMY_AO_B_PRIORITY);
+        dummy_windowAO = setupDummyObject(&g_windowAO, qf_ctrl::DUMMY_AO_A_PRIORITY);
+        dummy_sensorAO = setupDummyObject(&g_sensorAO, qf_ctrl::DUMMY_AO_B_PRIORITY);
+        dummy_bluetoothAO = setupDummyObject(&g_bluetoothAO, qf_ctrl::DUMMY_AO_C_PRIORITY);
 
         SequencerAO_ctor(&FakeBSPinterface);
         Fake_BSP_ctor();
         mUnderTest = g_sequencerAO; // this will be out AO under test
         CHECK_TRUE(mUnderTest != nullptr);
+        CHECK_TRUE(dummy_windowAO != nullptr);
         CHECK_TRUE(dummy_sensorAO != nullptr);
         CHECK_TRUE(dummy_bluetoothAO != nullptr);
 
@@ -68,6 +72,7 @@ TEST_GROUP(SequencerAOGroup)
         Fake_BSP_dtor();
         SequencerAO_dtor();
         mUnderTest = nullptr; // this will be out AO under test
+        dummy_windowAO = nullptr;
         dummy_bluetoothAO = nullptr;
         dummy_sensorAO = nullptr;
 
@@ -98,6 +103,12 @@ TEST_GROUP(SequencerAOGroup)
         if (dummy_bluetoothAO) {
             while (dummy_bluetoothAO->isAnyEventRecorded()) {
                 (void)dummy_bluetoothAO->getRecordedEvent(); // Pull and destroy
+            }
+        }
+
+        if (dummy_windowAO) {
+            while (dummy_windowAO->isAnyEventRecorded()) {
+                (void)dummy_windowAO->getRecordedEvent(); // Pull and destroy
             }
         }
     }
@@ -187,6 +198,19 @@ TEST(SequencerAOGroup, GivenBooting_WhenBspInitialised_ThenRequestBluetoothIniti
 
     CHECK_TRUE(recordedEvent != nullptr);
     CHECK_EQUAL(INITIALIZE_BLUETOOTH_SIG, recordedEvent->sig);
+}
+
+TEST(SequencerAOGroup, GivenBooting_WhenBspInitialised_ThenStartWindowing)
+{
+    using namespace cms::test;
+
+    startAOAndMoveToBootingState();
+    qf_ctrl::ProcessEvents();
+
+    auto recordedEvent = dummy_windowAO->getRecordedEvent();
+
+    CHECK_TRUE(recordedEvent != nullptr);
+    CHECK_EQUAL(START_WINDOWING_SIG, recordedEvent->sig);
 }
 
 TEST(SequencerAOGroup, GivenBooting_WhenOnlyMpuInitialized_ThenRemainInBootingState)

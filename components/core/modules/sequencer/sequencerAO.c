@@ -9,6 +9,7 @@
 
 #include "sensorAO.h"
 #include "bluetoothAO.h"
+#include "windowAO.h"
 #include "bluetooth.h"
 
 Q_DEFINE_THIS_MODULE("SequencerAO")
@@ -89,6 +90,7 @@ QState SequencerAO_initial(SequencerAO * const me, void const * const par) {
 }
 
 QState SequencerAO_booting(SequencerAO * me, const QEvt* e) {
+    static const QEvt windowSig = QEVT_INITIALIZER(START_WINDOWING_SIG);
 
     QState rtn;
 
@@ -110,6 +112,10 @@ QState SequencerAO_booting(SequencerAO * me, const QEvt* e) {
                 rtn = Q_TRAN(&SequencerAO_error);
             }
             else {
+                // Start Windower : this gives write location to sensorAO
+                // should be done first
+                QACTIVE_POST(g_windowAO, &windowSig, me);
+
                 // Start Sensor
                 SensorAOInitializeMpuRequestEvent * const sensorEvt =
                     Q_NEW(SensorAOInitializeMpuRequestEvent, INITIALIZE_MPU_SIG);

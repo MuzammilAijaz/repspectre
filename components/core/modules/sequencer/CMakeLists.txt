@@ -35,6 +35,7 @@ target_link_libraries(sequencerAO
     platform-bsp-api
     sensorAO
     bluetoothAO
+    windowAO
 )
 
 # Optional: alias (future-proof naming)
