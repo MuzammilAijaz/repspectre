@@ -66,6 +66,7 @@ QState SensorAO_initial(SensorAO * const me, void const * const par) {
     Q_UNUSED_PAR(par);
 
     QActive_subscribe(&me->super, INITIALIZE_MPU_SIG);
+    QActive_subscribe(&me->super, MPU_ISR_SIG);
     QActive_subscribe(&me->super, MPU_FIFO_FULL);
     QActive_subscribe(&me->super, WRITE_LOCATION_SIG);
 
@@ -119,6 +120,7 @@ QState SensorAO_uninitialized(SensorAO * me, const QEvt* e) {
 
 QState SensorAO_initialized(SensorAO * me, const QEvt* e) {
 
+    static const QEvt mpuFifoFullSig = QEVT_INITIALIZER(MPU_FIFO_FULL);
     QState rtn;
 
     switch (e->sig) {
@@ -150,7 +152,15 @@ QState SensorAO_initialized(SensorAO * me, const QEvt* e) {
             break;
         }
 
-        case MPU_FIFO_FULL: { // from ISR
+        case MPU_ISR_SIG: { // from ISR
+            if (me->sensor->Sensor_IsFifoOverflown()) {
+                QACTIVE_POST(g_sensorAO, &mpuFifoFullSig, me);
+            }
+            rtn = Q_HANDLED();
+            break;
+        }
+
+        case MPU_FIFO_FULL: { // NOT from ISR
 
             // Pointer MUST be valid 
             // WARN: reaching this case SHOULD NOT be happening often or ever

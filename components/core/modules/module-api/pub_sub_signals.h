@@ -41,6 +41,7 @@ typedef enum PubSubSignal {
     // Response signals
     MPU_INITIALIZED_SIG,
     MPU_UNINITIALIZED_SIG,
+    MPU_ISR_SIG,
     MPU_FIFO_FULL,
     SAMPLES_WRITTEN_SIG,
 

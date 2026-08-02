@@ -47,6 +47,7 @@ typedef struct {
 
     /** Returns all data from FIFO queue */
     uint32_t (*Sensor_GetFifo)(SensorData * const out, uint32_t maxSamplesToWrite);
+    bool (*Sensor_IsFifoOverflown)();
 } SensorInterface;
 
 void Sensor_init(void);

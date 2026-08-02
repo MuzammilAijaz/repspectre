@@ -216,6 +216,23 @@ TEST(SensorAOGroup, GivenValidConfig_WhenInitializeMpuCalled_ThenEmitsInitialize
 // | Domain Logic
 // =============================================================================
 
+TEST(SensorAOGroup, GivenInitialized_WhenMpuIsrReceivedAndFifoOverflown_ThenPostsFifoFullEvent)
+{
+    using namespace cms::test;
+    startAOAndMoveToInitializedState(validConfig);
+
+    // Configure Sensor to report a FIFO overflow
+    Fake_Sensor_SetFifoOverflow(true);
+
+    // Simulate the ISR firing
+    auto* e = Q_NEW(QEvt, MPU_ISR_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+
+    // WARN: avoiding directly checking posted signal for module under test
+    // since no writelocation given, it should result in write miss (inside MPU_FIFO_FULL case)
+    CHECK_TRUE(SensorAO_getWriteMisses() == 1);
+}
+
 // Should handle The FIFO buffer filling event and send data ready signal for further processing
 TEST(SensorAOGroup, GivenInitialized_WhenDataReady_ThenPublishesSensorDataEvent)
 {

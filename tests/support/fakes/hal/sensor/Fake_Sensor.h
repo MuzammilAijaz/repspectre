@@ -13,6 +13,7 @@ void Fake_Sensor_ctor();
 void Fake_Sensor_SetInitResult(SensorStatus error);
 void Fake_Sensor_InjectSensorDataInFifo(Axis3f* data);
 void Fake_Sensor_SetFifoSize(int size);
+void Fake_Sensor_SetFifoOverflow(bool val);
 
 extern SensorInterface Fake_Sensor_interface;
 

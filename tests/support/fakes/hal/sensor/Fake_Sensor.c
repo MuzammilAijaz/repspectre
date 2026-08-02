@@ -10,6 +10,7 @@ static Axis3f* sensorFifo;
 static int fifoHead;
 static int fifoTail;
 static int sensorFifoSize;
+static bool overflownStatus;
 
 bool Fake_Sensor_readGyro (Axis3f *gyro) {
     return true;
@@ -27,6 +28,10 @@ SensorStatus Fake_Sensor_init(SensorConfig config) {
     return status;
 }
 
+bool Fake_Sensor_isFifoOverflown() {
+    return overflownStatus;
+}
+
 uint32_t Fake_Sensor_GetFifo(SensorData * const out, uint32_t maxSamplesToWrite) {
     (void) out;
     return maxSamplesToWrite;
@@ -36,6 +41,7 @@ SensorInterface Fake_Sensor_interface = {
     .Sensor_init = Fake_Sensor_init,
     .Sensor_readAcc = Fake_Sensor_readAcc,
     .Sensor_readGyro = Fake_Sensor_readGyro,
+    .Sensor_IsFifoOverflown = Fake_Sensor_isFifoOverflown,
     .Sensor_GetFifo = Fake_Sensor_GetFifo
 };
 
@@ -68,4 +74,8 @@ void Fake_Sensor_InjectSensorDataInFifo(Axis3f* data) {
 }
 
 void Fake_Sensor_SetFifoSize(int size) {
+}
+
+void Fake_Sensor_SetFifoOverflow(bool val) {
+    overflownStatus = val;
 }
