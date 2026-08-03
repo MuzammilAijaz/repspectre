@@ -25,6 +25,8 @@ set(PLATFORM_DIR ${CMAKE_SOURCE_DIR}/components/platform)
 set(MODULES_DIR ${CMAKE_SOURCE_DIR}/components/core/modules)
 set(TESTS_DIR ${CMAKE_SOURCE_DIR}/tests)
 
+# ==== Libraries ==============================================================
+
 add_library(freertos_config INTERFACE)
 target_include_directories(freertos_config INTERFACE
     ${CMAKE_SOURCE_DIR}/components/platform/common/include/freertos-posix
@@ -40,6 +42,13 @@ FetchContent_Declare(
     qpc
     GIT_REPOSITORY https://github.com/QuantumLeaps/qpc.git
     GIT_TAG v7.3.3
+
+    PATCH_COMMAND
+    git apply --check --reverse
+    ${CMAKE_SOURCE_DIR}/patches/qf_port_esp_idf_fix.patch
+    ||
+    git apply
+    ${CMAKE_SOURCE_DIR}/patches/qf_port_esp_idf_fix.patch
 )
 FetchContent_MakeAvailable(qpc)
 

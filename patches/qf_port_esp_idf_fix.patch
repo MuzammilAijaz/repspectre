@@ -1,0 +1,13 @@
+diff --git a/ports/esp-idf/qf_port.c b/ports/esp-idf/qf_port.c
+index b38743bd..f73bcaba 100644
+--- a/ports/esp-idf/qf_port.c
++++ b/ports/esp-idf/qf_port.c
+@@ -688,7 +688,7 @@ void IRAM_ATTR QF_gcFromISR(QEvt const * const e) {
+     }
+ }
+ //............................................................................
+-void IRAM_ATTR QMPool_putFromISR(QMPool * const me, void *b,
++void IRAM_ATTR QMPool_putFromISR(QMPool * const me, void *block,
+                                  uint_fast8_t const qsId)
+ {
+ #ifndef Q_SPY
