@@ -32,7 +32,6 @@ add_library(platform-esp32 INTERFACE)
 
 target_sources(platform-esp32 INTERFACE
 	BSP_esp.c
-	bluetooth_esp.c
 	i2c_esp32.c
 	i2cdev_esp32.c
 	sensor_esp32.c
@@ -58,3 +57,16 @@ target_link_libraries(platform-esp32
 	hal-api
 	i2cdev-mpu6050
 )
+
+# Bluetooth extension target for ESP32 platform
+add_library(platform-esp32-bluetooth INTERFACE)
+
+target_sources(platform-esp32-bluetooth INTERFACE
+	bluetooth_esp.c
+)
+
+target_link_libraries(platform-esp32-bluetooth
+	INTERFACE
+	platform-esp32
+)
+

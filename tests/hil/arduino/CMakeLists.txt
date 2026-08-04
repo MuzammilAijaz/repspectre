@@ -329,7 +329,7 @@ add_hil_test(sensor_test "sensor_test"
 # add_hil_test(sequencer_test "sequencer_test"
 #     # platform-arduino for mpu6050 implement on arduino
 #     # "qp-arduino-port;sensorAO;platform-arduino;qp-headers;sequencerAO"
-#      "qp-arduino-port;hal-api;bluetoothAO;sensorAO;platform-esp32;qp-headers;sequencerAO"
+#      "qp-arduino-port;hal-api;bluetoothAO;sensorAO;platform-esp32-bluetooth;qp-headers;sequencerAO"
 #
 #     TEST_SCRIPTS
 #         "${TESTS_DIR}/hil/arduino/sequencer_test/sequencer_test.py"
@@ -350,7 +350,7 @@ add_hil_test(sensor_test "sensor_test"
 
 # WARN: TESTS DO NOT WORK, need to refactor to new design
 # add_hil_test(bluetooth_test_esp "bluetooth_test"
-#     "platform-bsp-api;bluetoothAO;platform-esp32;qp-headers;hal-api"
+#     "platform-bsp-api;bluetoothAO;platform-esp32-bluetooth;qp-headers;hal-api"
 #
 #     EXTRA_SRCS
 #
