@@ -1,0 +1,166 @@
+// WARN: CODE COPIED FROM tests/hil/arduino/ports/arduino-quest/qutest_port_arduino.cpp
+// TODO: avoid code duplication
+// WARN: code also contains arduino code which should NOT be utilized here.
+
+// extern "C" {
+//     /** Dispatches QSpy-injected events to actual AOs. */
+//     void QS_processTestEvts_(void);
+// }
+
+#include "driver/usb_serial_jtag.h"
+#define USB_SERIAL_JTAG 1
+
+#ifndef Q_SPY
+#error "Q_SPY must be defined for QUTest application"
+#endif // Q_SPY
+
+#define QP_IMPL             // this is QP implementation
+#include "qp_port.h"        // QP port
+#include "qsafe.h"          // QP Functional Safety (FuSa) Subsystem
+#include "qs_port.h"        // QS port
+
+#include "esp_system.h"
+
+#define QS_TX_SIZE     (8U * 1024U)
+#define QS_RX_SIZE     (2U * 1024U)
+#define QS_TX_CHUNK    QS_TX_SIZE
+#define QS_POLL_DELAY  1U
+
+static void hil_serial_begin(void);
+static size_t hil_serial_write(uint8_t const *data, size_t len);
+static void hil_serial_flush(void);
+static int hil_serial_read(uint8_t *buf, uint32_t len);
+
+static void hil_serial_begin(void) {
+#if defined(USB_SERIAL_JTAG)
+    static bool installed;
+    if (!installed) {
+        usb_serial_jtag_driver_config_t config =
+            USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+
+        config.tx_buffer_size = QS_TX_SIZE;
+        config.rx_buffer_size = QS_RX_SIZE;
+        installed = usb_serial_jtag_is_driver_installed()
+            || (usb_serial_jtag_driver_install(&config) == ESP_OK);
+    }
+#else
+    Serial.setRxBufferSize(QS_RX_SIZE);
+    Serial.begin(115200);
+
+    uint32_t const deadline = millis() + 3000U;
+    while (!Serial && (millis() < deadline)) {
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+#endif
+}
+
+static size_t hil_serial_write(uint8_t const *data, size_t len) {
+#if defined(USB_SERIAL_JTAG)
+    // Use a short timeout for each write attempt.
+    int const n = usb_serial_jtag_write_bytes(data, len, pdMS_TO_TICKS(10));
+    return (n > 0) ? (size_t)n : 0U;
+#else
+    return Serial.write(data, len);
+#endif
+}
+
+static void hil_serial_flush(void) {
+#if defined(USB_SERIAL_JTAG)
+    (void)usb_serial_jtag_wait_tx_done(pdMS_TO_TICKS(10));
+#else
+    Serial.flush();
+#endif
+}
+
+static int hil_serial_read(uint8_t *buf, uint32_t len) {
+#if defined(USB_SERIAL_JTAG)
+    return usb_serial_jtag_read_bytes(buf, len, 0);
+#else
+    uint32_t n = 0U;
+    while ((n < len) && (Serial.available() > 0)) {
+        int const b = Serial.read();
+        if (b < 0) {
+            break;
+        }
+        buf[n++] = (uint8_t)b;
+    }
+    return (int)n;
+#endif
+}
+
+//............................................................................
+// extern "C" {
+    uint8_t QS_onStartup(void const *arg) {
+        // initialize the QS transmit and receive buffers
+        static uint8_t qsBuf[QS_TX_SIZE];   // buffer for QS-TX channel
+        QS_initBuf(qsBuf, sizeof(qsBuf));
+
+        static uint8_t qsRxBuf[QS_RX_SIZE]; // buffer for QS-RX channel
+        QS_rxInitBuf(qsRxBuf, sizeof(qsRxBuf));
+
+        (void)arg;
+        hil_serial_begin();
+
+        return 1U; // success
+    }
+
+    //............................................................................
+    void QS_onCleanup(void) {
+        // allow the last QS output to come out
+        hil_serial_flush();
+    }
+
+    //............................................................................
+    void QS_onReset(void) {
+        QS_onCleanup();
+        //PRINTF_S("\n%s\n", "QS_onReset");
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+        esp_restart(); // This forces the whole setup() to run again, sending fresh dictionaries
+    }
+
+    //............................................................................
+    void QS_onFlush(void) {
+        // NOTE:
+        // No critical section in QS_onFlush() to avoid nesting of critical sections
+        // in case QS_onFlush() is called from Q_onError().
+
+        uint16_t nBytes = QS_TX_CHUNK;
+        uint8_t const *data;
+        while ((data = QS_getBlock(&nBytes)) != (uint8_t *)0) {
+            uint16_t totalWritten = 0U;
+            while (totalWritten < nBytes) {
+                size_t const written = hil_serial_write(data + totalWritten,
+                        (size_t)(nBytes - totalWritten));
+                totalWritten += (uint16_t)(written);
+
+                if (totalWritten < nBytes) {
+                    // Buffer full? Wait a tiny bit and retry.
+                    // This is safe because QS_onFlush is called from the idle
+                    // loop or test loop where we have time.
+                    // delayMicroseconds(100);
+                    vTaskDelay(pdMS_TO_TICKS(1));
+                }
+            }
+            // set nBytes for the next call to QS_getBlock()
+            nBytes = QS_TX_CHUNK;
+        }
+        hil_serial_flush();
+    }
+
+    //............................................................................
+    void QS_output(void) {
+        QS_onFlush();
+    }
+
+    //............................................................................
+    void QS_rx_input(void) {
+        int const status = hil_serial_read(QS_rxPriv_.buf, QS_rxPriv_.end);
+
+        if (status > 0) { // any data received?
+            QS_rxPriv_.tail = 0U;
+            QS_rxPriv_.head = status; // # bytes received
+            QS_rxParse(); // parse all received bytes
+        }
+    }
+// }
