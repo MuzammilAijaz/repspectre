@@ -318,13 +318,13 @@ target_compile_definitions(qp-arduino-port INTERFACE
 # =============================================================================
 # NOTE: Tests run serially
 
-add_hil_test(sensor_test "sensor_test"
-    # "platform-arduino;platform-api;i2c;i2cdev-mpu6050" # arduino
-    "platform-esp32;bluetoothAO;sensorAO;module-api;platform-api;i2c;i2cdev-mpu6050" # esp-idf
-
-    TEST_SCRIPTS
-        "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"
-)
+# add_hil_test(sensor_test "sensor_test"
+#     # "platform-arduino;platform-api;i2c;i2cdev-mpu6050" # arduino
+#     "platform-esp32;bluetoothAO;sensorAO;module-api;platform-api;i2c;i2cdev-mpu6050" # esp-idf
+#
+#     TEST_SCRIPTS
+#         "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"
+# )
 
 # add_hil_test(sequencer_test "sequencer_test"
 #     # platform-arduino for mpu6050 implement on arduino
@@ -359,3 +359,10 @@ add_hil_test(sensor_test "sensor_test"
 #     TEST_SCRIPTS
 #     "${TESTS_DIR}/hil/arduino/bluetooth_test/bluetooth_test.py"
 # )
+
+add_hil_test(windowing_test "windowing_test"
+    "qp-arduino-port;hal-api;sensorAO;windowAO;platform-esp32;qp-headers"
+
+    TEST_SCRIPTS
+        "${TESTS_DIR}/hil/arduino/windowing_test/windowing_test.py"
+)
