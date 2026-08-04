@@ -3,7 +3,7 @@ if(IDF_PATH)
     idf_component_register(
         SRCS "sensorAO.c"
         INCLUDE_DIRS "include"
-        REQUIRES qpc module-api hal-api window adc
+        REQUIRES qpc module-api hal-api window
     )
     return()
 endif()
@@ -30,7 +30,6 @@ target_link_libraries(sensorAO
 
     module-api # for event signals; since its INTERFACE lib, directories included automaticaly
     hal-api
-    adc
     windowAO
 )
 

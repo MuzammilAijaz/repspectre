@@ -5,6 +5,9 @@
 // fake ADC value controlled by test
 static uint16_t adc_fake = 0;
 
+uint16_t ADC_read(void);
+void ADC_set(uint16_t val);
+
 enum {
     ADC_MOD = QS_USER1
 };
