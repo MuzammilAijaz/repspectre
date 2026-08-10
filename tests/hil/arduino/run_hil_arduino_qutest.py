@@ -527,7 +527,8 @@ def _arduino_cli_compile(
         "--output-dir",
         str(output_dir),
         "--build-property",
-        "build.optimization_flags=-Og",
+        # RESEARCH: verify build properties for other core.
+        "compiler.optimization_flags=-Og", # WARN:
         "--build-property",
         f"compiler.cpp.extra_flags={defs} {all_extra_includes}",
         "--build-property",
