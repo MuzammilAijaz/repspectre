@@ -361,7 +361,7 @@ target_compile_definitions(qp-arduino-port INTERFACE
 # )
 
 add_hil_test(windowing_test "windowing_test"
-    "qp-arduino-port;hal-api;sensorAO;windowAO;platform-esp32;qp-headers"
+    "common;qp-arduino-port;hal-api;sensorAO;windowAO;platform-esp32;qp-headers;i2cdev-mpu6050"
 
     TEST_SCRIPTS
         "${TESTS_DIR}/hil/arduino/windowing_test/windowing_test.py"

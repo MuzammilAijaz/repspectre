@@ -10,6 +10,9 @@ extern "C" {
 #include "BSP.h"
 #include "qs_port.h"
 
+#include "repspectre_log.h"
+#include "mpu6050.h"
+
 // -------------------------------------------------------------
 #define ESP_IDF 1
 
@@ -43,12 +46,31 @@ enum {
     CMD_SMOKE,
     CMD_DELAY_FOR,
     CMD_INITIALIZE_SENSOR,
+    CMD_START_WINDOWING_AND_MEASURE_TIME_TO_SAMPLES_WRITTEN_SIG,
+    CMD_START_WINDOWING_AND_CHECK_SAMPLES_WRITTEN_PER_TIME,
     TOTAL_COMMAND_SIGNALS
 };
 
 enum {
     HIL_TEST_SIG = QS_USER,
+    HIL_TEST_SIG2 ,
+    HIL_TEST_SIG3 ,
 };
+
+//----- State for commands -------------------------------------
+// TODO: create structs
+
+// @see CMD_START_WINDOWING_AND_MEASURE_TIME_TO_SAMPLES_WRITTEN_SIG
+static uint32_t start_time = 0;
+static uint32_t end_time = 0;
+static bool is_measuring = false;
+
+// @see CMD_START_WINDOWING_AND_CHECK_SAMPLES_WRITTEN_PER_TIME
+static uint32_t check_start_time = 0U;
+static uint32_t check_duration_ms = 0U;
+static uint32_t check_required_count = 0U;
+static uint32_t check_count = 0U;
+static bool checking_samples_written = false;
 
 // ---- Dynamic event storage/pool -----------------------------
 // private storage (for normal QEvt events) for creation of events,
@@ -78,6 +100,8 @@ static void resetFixtureState(void) {
 
 static void QS_userDictionaries(void) {
     QS_USR_DICTIONARY(HIL_TEST_SIG);
+    QS_USR_DICTIONARY(HIL_TEST_SIG2);
+    QS_USR_DICTIONARY(HIL_TEST_SIG3);
 
     QS_SIG_DICTIONARY(INITIALIZE_MPU_SIG, NULL);
     QS_SIG_DICTIONARY(MPU_INITIALIZED_SIG, NULL);
@@ -97,6 +121,8 @@ static void QS_userDictionaries(void) {
     QS_ENUM_DICTIONARY(CMD_SMOKE, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_DELAY_FOR, QS_CMD);
     QS_ENUM_DICTIONARY(CMD_INITIALIZE_SENSOR, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_START_WINDOWING_AND_MEASURE_TIME_TO_SAMPLES_WRITTEN_SIG, QS_CMD);
+    QS_ENUM_DICTIONARY(CMD_START_WINDOWING_AND_CHECK_SAMPLES_WRITTEN_PER_TIME, QS_CMD);
 }
 
 static void run_test_fixture() {
@@ -132,6 +158,7 @@ static void run_test_fixture() {
 
     // ---- QP / QS ------------------------------------------------
 
+    RepspectreLog_registerDriverQsRecords();
     QS_userDictionaries();
 
     // pause execution of the test and wait for the test script to continue
@@ -182,6 +209,21 @@ void setup() {
 
 extern "C" void QF_onClockTick(void) {
     QTIMEEVT_TICK_X(0U, (void *)0);
+
+    // @see CMD_START_WINDOWING_AND_CHECK_SAMPLES_WRITTEN_PER_TIME
+    // timeout functionality when required events not delivered in given time
+    if (checking_samples_written &&
+            (millis() - check_start_time >= check_duration_ms)) {
+
+        checking_samples_written = false;
+
+        QS_BEGIN_ID(HIL_TEST_SIG3, 1U)
+            QS_STR("samples written check failed. hit: ");
+            QS_U32(0U, check_count);
+            QS_STR("out of :");
+            QS_U32(0U, check_required_count);
+        QS_END();
+    }
 }
 
 void loop() {
@@ -225,6 +267,49 @@ void QS_onCommand(uint8_t cmdId,
                     .fifo_size = 1000,
                 };
                 QACTIVE_POST(g_sensorAO, &sensorEvt->super, NULL);
+
+                break;
+            }
+
+        case CMD_START_WINDOWING_AND_MEASURE_TIME_TO_SAMPLES_WRITTEN_SIG:
+            {
+                start_time = 0;
+                end_time = 0;
+                is_measuring = true;
+
+                mpu6050ResetDMP();
+                mpu6050ResetFIFO();
+
+                static const QEvt windowSig = QEVT_INITIALIZER(START_WINDOWING_SIG);
+                QACTIVE_POST(g_windowAO, &windowSig, NULL);
+
+                mpu6050ResetDMP();
+                mpu6050ResetFIFO();
+                (void)mpu6050GetIntStatus();
+
+                break;
+            }
+
+        case CMD_START_WINDOWING_AND_CHECK_SAMPLES_WRITTEN_PER_TIME:
+            {
+                // param1 = total time for all required samples in miliseconds
+                // param2 = required number of SAMPLES_WRITTEN_SIG events
+
+                check_start_time = millis();
+                check_duration_ms = param1;
+                check_required_count = param2;
+                check_count = 0U;
+                checking_samples_written = true;
+
+                mpu6050ResetDMP();
+                mpu6050ResetFIFO();
+
+                static const QEvt windowSig = QEVT_INITIALIZER(START_WINDOWING_SIG);
+                QACTIVE_POST(g_windowAO, &windowSig, NULL);
+
+                mpu6050ResetDMP();
+                mpu6050ResetFIFO();
+                (void)mpu6050GetIntStatus();
 
                 break;
             }
@@ -281,13 +366,16 @@ void QS_onTestPost(void const *sender,
     }
 
     else if (recipient == g_sensorAO && e->sig == WRITE_LOCATION_SIG) {
+        if (is_measuring && start_time == 0) {
+            start_time = micros();
+        }
         QS_BEGIN_ID(HIL_TEST_SIG, 1U)
             QS_STR("write location given");
         QS_END();
     }
 
     else if (recipient == g_sensorAO && e->sig == MPU_FIFO_FULL) {
-        QS_BEGIN_ID(HIL_TEST_SIG, 1U)
+        QS_BEGIN_ID(HIL_TEST_SIG2, 1U)
             QS_STR("sensor fifo is full");
         QS_END();
     }
@@ -301,6 +389,29 @@ void QS_onTestPost(void const *sender,
     }
 
     else if (recipient == g_windowAO && e->sig == SAMPLES_WRITTEN_SIG) {
+        if (is_measuring) {
+            end_time = micros();
+            uint32_t elapsed = end_time - start_time;
+            is_measuring = false;
+
+            QS_BEGIN_ID(HIL_TEST_SIG3, 1U)
+                QS_STR("time to samples written");
+                QS_U32(0U, elapsed);
+            QS_END();
+        }
+
+        if (checking_samples_written) {
+            ++check_count;
+
+            if (check_count >= check_required_count) {
+                checking_samples_written = false;
+
+                QS_BEGIN_ID(HIL_TEST_SIG3, 1U)
+                    QS_STR("samples written check passed");
+                QS_END();
+            }
+        }
+
         QS_BEGIN_ID(HIL_TEST_SIG, 1U)
             QS_STR("window samples ready");
         QS_END();
