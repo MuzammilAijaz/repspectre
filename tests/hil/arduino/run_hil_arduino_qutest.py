@@ -718,6 +718,16 @@ def main() -> int:
         default=0.2,
         help="Seconds to wait after upload before starting qspy/qutest",
     )
+    parser.add_argument(
+        "--only-compile",
+        action="store_true",
+        help="Only run arduino-cli compile and exit",
+    )
+    parser.add_argument(
+        "--only-upload",
+        action="store_true",
+        help="Only run compile and upload and exit",
+    )
 
     parser.add_argument(
         "--define",
@@ -869,6 +879,10 @@ def main() -> int:
                     f"--no-build was set but no prior build artifacts exist in: {out_dir}"
                 )
 
+        if args.only_compile:
+            print("DEBUG: --only-compile set. Exiting successfully.")
+            return 0
+
         prev_upload_digest = _read_json(upload_stamp_path).get("digest", "")
         need_upload = args.force_upload or did_build or (prev_upload_digest != inputs_digest)
 
@@ -881,6 +895,10 @@ def main() -> int:
                 input_dir=out_dir,
             )
             _write_json(upload_stamp_path, {"version": _STAMP_VERSION, "digest": inputs_digest})
+
+        if args.only_upload:
+            print("DEBUG: --only-upload set. Exiting successfully.")
+            return 0
 
         time.sleep(args.after_upload_sleep)
 
