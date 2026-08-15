@@ -7,6 +7,8 @@ CTEST := ctest
 CMAKE_FLAGS := -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Debug
 ARDUINO_FQBN ?= esp32:esp32:esp32s3
 ARDUINO_PORT ?= /dev/ttyACM0
+CDC_MODE ?= OFF
+UART_BAUD ?= 3000000
 QSPY_BIN ?= $(HOME)/qtools/qspy/posix/rel/qspy
 QUTEST_PY ?= $(HOME)/qtools/qutest/qutest.py
 
@@ -42,7 +44,9 @@ configure-hil:
 		-DARDUINO_FQBN=$(ARDUINO_FQBN) \
 		-DARDUINO_PORT=$(ARDUINO_PORT) \
 		-DQSPY_BIN=$(QSPY_BIN) \
-		-DQUTEST_PY=$(QUTEST_PY)
+		-DQUTEST_PY=$(QUTEST_PY) \
+		-DCDC_MODE=$(CDC_MODE) \
+		-DARDUINO_UART_BAUD=$(UART_BAUD) \
 
 test-hil: configure-hil
 	$(CTEST) --test-dir $(CMAKE_BUILD_DIR) -L hil --output-on-failure

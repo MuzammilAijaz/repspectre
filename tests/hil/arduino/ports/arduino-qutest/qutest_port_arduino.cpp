@@ -74,7 +74,7 @@ static void hil_serial_begin(void) {
     }
 #else
     Serial.setRxBufferSize(QS_RX_SIZE);
-    Serial.begin(115200);
+    Serial.begin(ARDUINO_UART_BAUD);
 
     uint32_t const deadline = millis() + 3000U;
     while (!Serial && (millis() < deadline)) {

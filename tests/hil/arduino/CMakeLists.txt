@@ -318,6 +318,9 @@ function(add_hil_test TEST_NAME SKETCH_SUBDIR LINK_LIBS)
     foreach(DEFINE ${HIL_DEFINES})
         list(APPEND HIL_DEFINE_ARGS --define ${DEFINE})
     endforeach()
+    if(NOT CDC_MODE AND ARDUINO_UART_BAUD)
+        list(APPEND HIL_DEFINE_ARGS --define ARDUINO_UART_BAUD=${ARDUINO_UART_BAUD})
+    endif()
 
     # 4. Add the actual test
     add_test(
