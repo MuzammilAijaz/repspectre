@@ -524,6 +524,8 @@ def _arduino_cli_compile(
         fqbn,
         "--build-path",
         str(build_path),
+        "--build-cache-path",   # reuse compiled core/libs between runs
+        str(build_cache_path),
         "--output-dir",
         str(output_dir),
         "--build-property",
