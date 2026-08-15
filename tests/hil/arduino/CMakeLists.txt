@@ -199,6 +199,7 @@ function(add_hil_test TEST_NAME SKETCH_SUBDIR LINK_LIBS)
         EXTRA_SRCS
         EXTRA_INCLUDES
         TEST_SCRIPTS
+        DEFINES
     )
     cmake_parse_arguments(HIL
         "${options}"
@@ -252,6 +253,12 @@ function(add_hil_test TEST_NAME SKETCH_SUBDIR LINK_LIBS)
         @ONLY
     )
 
+    # set all defines
+    set(HIL_DEFINE_ARGS)
+    foreach(DEFINE ${HIL_DEFINES})
+        list(APPEND HIL_DEFINE_ARGS --define ${DEFINE})
+    endforeach()
+
     # 4. Add the actual test
     add_test(
         NAME hil_${TEST_NAME}
@@ -266,7 +273,7 @@ function(add_hil_test TEST_NAME SKETCH_SUBDIR LINK_LIBS)
             --qpc ${QPC_DIR}
             --sketch ${TESTS_DIR}/hil/arduino/${SKETCH_SUBDIR}
             --work-dir ${TEST_WORK_DIR}
-            --define ARDUINO_HIL_TEST
+            ${HIL_DEFINE_ARGS}
             # TODO: verify if this worked!
             --qspy-baud 1500000
             # ${ARGN} # Pass remaining python scripts
@@ -324,6 +331,9 @@ target_compile_definitions(qp-arduino-port INTERFACE
 #
 #     TEST_SCRIPTS
 #         "${TESTS_DIR}/hil/arduino/sensor_test/sensor_test.py"
+#
+#     DEFINES
+#         ARDUINO_SENSOR_HIL_TEST
 # )
 
 # add_hil_test(sequencer_test "sequencer_test"
@@ -365,4 +375,7 @@ add_hil_test(windowing_test "windowing_test"
 
     TEST_SCRIPTS
         "${TESTS_DIR}/hil/arduino/windowing_test/windowing_test.py"
+
+    DEFINES
+        ARDUINO_HIL_TEST
 )
