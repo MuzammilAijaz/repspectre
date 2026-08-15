@@ -40,16 +40,53 @@
 #
 #*****************************************************************************
 
+#===== Formatting =============================================================
+
+string(ASCII 27 ESC)
+
+set(COLOR_RESET   "${ESC}[0m")
+set(COLOR_BOLD    "${ESC}[1m")
+
+set(COLOR_WHITE   "${ESC}[47;30m") # White BG, Black text
+set(COLOR_RED     "${ESC}[41;1;37m") # Red BG, Bold White text
+set(COLOR_GREEN   "${ESC}[42;30m") # Green BG, Black text
+set(COLOR_YELLOW  "${ESC}[43;30m") # Yellow BG, Black text
+set(COLOR_BLUE    "${ESC}[44;1;37m") # Blue BG, Bold White text
+set(COLOR_MAGENTA "${ESC}[45;1;37m") # Magenta BG, Bold White text
+set(COLOR_CYAN    "${ESC}[46;30m") # Cyan BG, Black text
+
+function(message_status_color COLOR TEXT)
+    message(STATUS "${COLOR}${TEXT}${COLOR_RESET}")
+endfunction()
+
+function(message_info TEXT)
+    message(STATUS "${COLOR_WHITE}${TEXT}${COLOR_RESET}")
+endfunction()
+
+function(message_success TEXT)
+    message(STATUS "${COLOR_GREEN}${TEXT}${COLOR_RESET}")
+endfunction()
+
+function(message_warning TEXT)
+    message(WARNING "${COLOR_YELLOW}${TEXT}${COLOR_RESET}")
+endfunction()
+
+function(message_error TEXT)
+    message(SEND_ERROR "${COLOR_RED}${TEXT}${COLOR_RESET}")
+endfunction()
+
+#==============================================================================
+
 option(REPSPECTRE_ENABLE_HIL_TESTS "Enable Arduino hardware-in-the-loop (HIL) tests" OFF)
 
 if(NOT REPSPECTRE_ENABLE_HIL_TESTS)
-    message(STATUS "HIL tests are disabled (REPSPECTRE_ENABLE_HIL_TESTS=OFF)")
+    message_error("HIL tests are disabled (REPSPECTRE_ENABLE_HIL_TESTS=OFF)")
     return()
 endif()
 
 set(Python3_EXECUTABLE "/usr/bin/python3" CACHE FILEPATH "Forced Python path")
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-message(STATUS "Python executable: ${Python3_EXECUTABLE}")
+message_info("Python executable: ${Python3_EXECUTABLE}")
 
 set(ARDUINO_CLI "" CACHE FILEPATH "Path to arduino-cli")
 set(ARDUINO_FQBN "" CACHE STRING "Arduino FQBN (required for HIL tests)")
@@ -64,17 +101,17 @@ if(NOT ARDUINO_CLI OR NOT EXISTS "${ARDUINO_CLI}")
             $ENV{HOME}/.local/bin
     )
     if(NOT ARDUINO_CLI)
-        message(FATAL_ERROR "arduino-cli not found. Install it or pass -DARDUINO_CLI=/full/path/to/arduino-cli")
+        message_error("arduino-cli not found. Install it or pass -DARDUINO_CLI=/full/path/to/arduino-cli")
     endif()
-    message(STATUS "ARDUINO_CLI set to: ${ARDUINO_CLI}")
+    message_info("ARDUINO_CLI set to: ${ARDUINO_CLI}")
 endif()
 
 if(NOT ARDUINO_FQBN)
-    message(FATAL_ERROR "ARDUINO_FQBN must be set to run HIL tests (e.g. -DARDUINO_FQBN=esp32:esp32:esp32dev)")
+    message_error("ARDUINO_FQBN must be set to run HIL tests (e.g. -DARDUINO_FQBN=esp32:esp32:esp32dev)")
 endif()
 
 if(NOT ARDUINO_PORT)
-    message(FATAL_ERROR "ARDUINO_PORT must be set to run HIL tests (e.g. -DARDUINO_PORT=/dev/ttyUSB0)")
+    message_error("ARDUINO_PORT must be set to run HIL tests (e.g. -DARDUINO_PORT=/dev/ttyUSB0)")
 endif()
 
 set(ARDUINO_FQBN_EFFECTIVE "${ARDUINO_FQBN}")
