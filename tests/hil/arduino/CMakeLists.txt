@@ -78,6 +78,7 @@ endfunction()
 #==============================================================================
 
 option(REPSPECTRE_ENABLE_HIL_TESTS "Enable Arduino hardware-in-the-loop (HIL) tests" OFF)
+option(CDC_MODE "Use USB CDC for Arduino HIL communication (OFF = UART)" OFF)
 
 if(NOT REPSPECTRE_ENABLE_HIL_TESTS)
     message_error("HIL tests are disabled (REPSPECTRE_ENABLE_HIL_TESTS=OFF)")
@@ -114,13 +115,35 @@ if(NOT ARDUINO_PORT)
     message_error("ARDUINO_PORT must be set to run HIL tests (e.g. -DARDUINO_PORT=/dev/ttyUSB0)")
 endif()
 
+set(ARDUINO_UART_BAUD ""
+    CACHE STRING
+    "UART baud rate for Arduino HIL communication when CDC_MODE=OFF"
+)
+
 set(ARDUINO_FQBN_EFFECTIVE "${ARDUINO_FQBN}")
-# Arduino-ESP32's `esp32s3` default leaves CDC-on-boot disabled, which makes
-# `Serial` map to UART0. For typical `/dev/ttyACM*` setups (USB-Serial/JTAG),
-# enable CDC on boot so QSPY can talk to the running firmware.
-if(ARDUINO_FQBN_EFFECTIVE STREQUAL "esp32:esp32:esp32s3" AND ARDUINO_PORT MATCHES "^/dev/ttyACM")
-    set(ARDUINO_FQBN_EFFECTIVE "esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc")
-    message(STATUS "Adjusted ARDUINO_FQBN for HWCDC: ${ARDUINO_FQBN_EFFECTIVE}")
+if(CDC_MODE)
+    if(ARDUINO_UART_BAUD)
+        message_warn( "CDC mode is set, UART BAUD is NOT required")
+    endif()
+
+    # USB-Serial/JTAG.
+    if(ARDUINO_FQBN_EFFECTIVE STREQUAL "esp32:esp32:esp32s3" AND ARDUINO_PORT MATCHES "^/dev/ttyACM")
+        set(ARDUINO_FQBN_EFFECTIVE "esp32:esp32:esp32s3:USBMode=hwcdc,CDCOnBoot=cdc")
+        message_info("Adjusted ARDUINO_FQBN for HWCDC: ${ARDUINO_FQBN_EFFECTIVE}")
+    endif()
+else()
+    # require baud when UART mode is selected
+    if(NOT ARDUINO_UART_BAUD)
+        message_error( "CDC_MODE=OFF requires ARDUINO_UART_BAUD to be set.\n"
+            "Example: -DCDC_MODE=OFF -DARDUINO_UART_BAUD=115200")
+        return()
+    endif()
+
+    # UART port, CDC-on-boot. Serial therefore remains UART0.
+    if(ARDUINO_FQBN_EFFECTIVE STREQUAL "esp32:esp32:esp32s3" AND ARDUINO_PORT MATCHES "^/dev/ttyACM")
+        set(ARDUINO_FQBN_EFFECTIVE "esp32:esp32:esp32s3:USBMode=default,CDCOnBoot=default")
+        message_info("Adjusted ARDUINO_FQBN for UART: ${ARDUINO_FQBN_EFFECTIVE}")
+    endif()
 endif()
 
 # =============================================================================
@@ -311,8 +334,7 @@ function(add_hil_test TEST_NAME SKETCH_SUBDIR LINK_LIBS)
             --sketch ${TESTS_DIR}/hil/arduino/${SKETCH_SUBDIR}
             --work-dir ${TEST_WORK_DIR}
             ${HIL_DEFINE_ARGS}
-            # TODO: verify if this worked!
-            --qspy-baud 1500000
+            --qspy-baud ${ARDUINO_UART_BAUD}
             # ${ARGN} # Pass remaining python scripts
             ${HIL_TEST_SCRIPTS}
     )
