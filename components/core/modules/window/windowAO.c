@@ -141,13 +141,14 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
             // provide the next ready window
             WindowBuffer *next = findReadyWindow( &me->arena, me->currentProcessingWindow);
             Q_ASSERT(me->currentProcessingWindow != next); // make sure it doesnt return itself
+
+            // Inference caught up to sensor! stop inference.
             if (next == NULL) {
-                Q_ASSERT(1==0);
-                // TODO: FAILURE TO GET FREE WINDOW // BACKPRESSURE STATE???
-                // rtn = Q_TRAN(Backpressured);
+                me->currentProcessingWindow = NULL;
                 rtn = Q_HANDLED();
                 break;
             }
+
             me->currentProcessingWindow = next;
             
             // Send new data to continue inference
@@ -165,8 +166,14 @@ QState WindowAO_accumulating(WindowAO * me, const QEvt* e) {
             SamplesWrittenEvent const * evt = (SamplesWrittenEvent const *)e;
             me->currentFillingWindow->state = WINDOW_STATE_READY;
 
-            // start inference from here only for first
-            if (me->firstWrite) {
+            //----- Handle Inference Engine --------------------------------
+
+            // REFACTOR: collapse if; on firstWrite, currentProcessingWindow should already be NULL
+            // Start inference from here only for first write
+            // or
+            // If the inference was waiting for data (due to sensor producing too slowly)
+            // we can send signal to continue inference immediately
+            if (me->firstWrite || me->currentProcessingWindow == NULL) {
                 WindowReadyEvent * const evt = Q_NEW(WindowReadyEvent, WINDOW_READY_SIG);
                 me->currentFillingWindow->state = WINDOW_STATE_PROCESSING;
                 me->currentProcessingWindow = me->currentFillingWindow;
@@ -299,6 +306,11 @@ bool WindowAO_isInState(WindowStateId state)
 WindowBuffer* WindowAO_getCurrentFillingWindow()
 {
     return m_instance.currentFillingWindow;
+}
+
+WindowBuffer* WindowAO_getCurrentProcessingWindow()
+{
+    return m_instance.currentProcessingWindow;
 }
 
 WindowArena* WindowAO_getArena()

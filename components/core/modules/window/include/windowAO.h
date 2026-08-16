@@ -157,6 +157,7 @@ typedef enum {
 bool WindowAO_isInState(WindowStateId state);
 
 WindowBuffer* WindowAO_getCurrentFillingWindow();
+WindowBuffer* WindowAO_getCurrentProcessingWindow();
 
 // actual helper functions made public for testing
 WindowBuffer* findFreeWindow(WindowArena * const arena, WindowBuffer const * const current);

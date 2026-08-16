@@ -558,6 +558,55 @@ TEST(WindowAOGroup, GivenAccumulating_WhenInferenceDone_ThenChangeTheWindowToFre
     CHECK_EQUAL(WINDOW_STATE_FREE, window->state);
 }
 
+TEST(WindowAOGroup, GivenInferenceFasterThanSensor_WhenInferenceDoneBeforeNextSample_ThenWindowIsFreedAndInferenceStops)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    WindowArena* arena = WindowAO_getArena();
+
+    // start inference after first window
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
+
+    // Inference finishes BEFORE the sensor produces another window.
+    auto* inference1 = Q_NEW(QEvt, INFERENCE_DONE_SIG);
+    qf_ctrl::PublishAndProcess(inference1, mRecorder);
+
+    // There is no next READY window, because the sensor hasn't produced one 
+    // and WINDOW_READY_SIG doesnt get sent
+    CHECK_FALSE(mRecorder->isAnyEventRecorded());
+    CHECK_EQUAL(WINDOW_STATE_FREE, arena->windows[0].state);
+}
+
+TEST(WindowAOGroup, GivenInferenceWaiting_WhenSamplesWritten_ThenInferenceNotifiedToBeginAgain)
+{
+    startAOUnderTestAndMoveToAccumulatingState();
+
+    WindowArena* arena = WindowAO_getArena();
+
+    // fill first window to start inference
+    auto* e = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
+
+    // Inference finishes BEFORE the sensor produces another window.
+    auto* inference1 = Q_NEW(QEvt, INFERENCE_DONE_SIG);
+    qf_ctrl::PublishAndProcess(inference1, mRecorder);
+
+    // the next window write shouuld result in beginning the inference again by 
+    // publishing the window ready sig
+    auto* e2 = Q_NEW(QEvt, SAMPLES_WRITTEN_SIG);
+    qf_ctrl::PublishAndProcess(e2, mRecorder);
+    checkRecordedEventSignal(WINDOW_READY_SIG);
+
+    // final state of windows
+    CHECK_EQUAL(WINDOW_STATE_FREE, arena->windows[0].state);
+    CHECK_EQUAL(WINDOW_STATE_PROCESSING, arena->windows[1].state);
+    CHECK_EQUAL(WINDOW_STATE_FILLING, arena->windows[2].state);
+    CHECK_EQUAL(WINDOW_STATE_FREE, arena->windows[3].state);
+}
+
 //===== Overflown arena ========================================================
 
 // TODO: TEST(WindowAOGroup, GivenNoFreeWindows_WhenSamplesArrive_ThenDropOrRetainPerPolicy)
