@@ -11,11 +11,12 @@ if(IDF_PATH)
         INCLUDE_DIRS "include"
         REQUIRES
             bt
+            common
             freertos
             nvs_flash
             esp_driver_gpio
             platform-api
-            common
+            platform-common
             i2c
             mpu6050
             qpc
